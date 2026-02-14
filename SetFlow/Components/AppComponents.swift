@@ -82,6 +82,38 @@ struct PrimaryActionButton: View {
     }
 }
 
+/// Use this inside `NavigationLink` labels (non-interactive).
+struct PrimaryActionButtonLabel: View {
+    let title: String
+    var icon: String? = nil
+    var fullWidth: Bool = true
+    
+    var body: some View {
+        HStack(spacing: AppSpacing.sm) {
+            if let icon = icon {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+            }
+            Text(title)
+                .font(AppTypography.callout)
+                .fontWeight(.semibold)
+        }
+        .foregroundColor(.white)
+        .frame(maxWidth: fullWidth ? .infinity : nil)
+        .padding(.vertical, AppSpacing.md)
+        .padding(.horizontal, AppSpacing.lg)
+        .background(
+            AppTheme.Gradients.primary
+                .cornerRadius(AppTheme.Corners.lg)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.Corners.lg)
+                .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+        )
+        .appShadow(.floating)
+    }
+}
+
 /// Backwards-compatible alias used in earlier views
 struct PrimaryButton: View {
     let title: String
@@ -90,6 +122,16 @@ struct PrimaryButton: View {
     
     var body: some View {
         PrimaryActionButton(title: title, fullWidth: fullWidth, action: action)
+    }
+}
+
+/// Use this inside `NavigationLink` labels (non-interactive).
+struct PrimaryButtonLabel: View {
+    let title: String
+    var fullWidth: Bool = true
+    
+    var body: some View {
+        PrimaryActionButtonLabel(title: title, fullWidth: fullWidth)
     }
 }
 
@@ -120,6 +162,168 @@ struct SecondaryButton: View {
                 )
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Use this inside `NavigationLink` labels (non-interactive).
+struct SecondaryButtonLabel: View {
+    let title: String
+    var fullWidth: Bool = true
+    
+    var body: some View {
+        Text(title)
+            .font(AppTypography.callout)
+            .fontWeight(.medium)
+            .foregroundColor(AppColors.textPrimary)
+            .frame(maxWidth: fullWidth ? .infinity : nil)
+            .padding(.vertical, AppSpacing.md)
+            .padding(.horizontal, AppSpacing.lg)
+            .background(
+                RoundedRectangle(cornerRadius: AppTheme.Corners.lg)
+                    .fill(Color.white.opacity(0.06))
+                    .background(
+                        RoundedRectangle(cornerRadius: AppTheme.Corners.lg)
+                            .strokeBorder(AppColors.border.opacity(0.4), lineWidth: 1)
+                    )
+            )
+    }
+}
+
+// MARK: - Divider Component
+
+struct DividerView: View {
+    let text: String
+    
+    init(_ text: String = "or") {
+        self.text = text
+    }
+    
+    var body: some View {
+        HStack(spacing: AppSpacing.md) {
+            Rectangle()
+                .fill(Color.white.opacity(0.2))
+                .frame(height: 1)
+            
+            Text(text.uppercased())
+                .font(AppTypography.monoCaption)
+                .foregroundColor(Color.white.opacity(0.6))
+            
+            Rectangle()
+                .fill(Color.white.opacity(0.2))
+                .frame(height: 1)
+        }
+    }
+}
+
+// MARK: - Email Password Form Field
+
+struct FormTextField<FocusValue: Hashable>: View {
+    let title: String
+    @Binding var text: String
+    var placeholder: String = ""
+    var isSecure: Bool = false
+    var keyboardType: UIKeyboardType = .default
+    var errorMessage: String? = nil
+    var submitLabel: SubmitLabel = .next
+    var focusValue: FocusValue
+    var focusedField: FocusState<FocusValue>.Binding
+    var onCommit: (() -> Void)? = nil
+    
+    private var isFocused: Bool {
+        focusedField.wrappedValue == focusValue
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            Text(title.uppercased())
+                .font(AppTypography.monoCaption)
+                .foregroundColor(Color.white.opacity(0.7))
+            
+            Group {
+                if isSecure {
+                    SecureField(placeholder, text: $text)
+                        .textContentType(.password)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                        .submitLabel(submitLabel)
+                } else {
+                    TextField(placeholder, text: $text)
+                        .keyboardType(keyboardType)
+                        .textContentType(keyboardType == .emailAddress ? .emailAddress : .none)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                        .submitLabel(submitLabel)
+                }
+            }
+            .font(AppTypography.body)
+            .foregroundColor(.white)
+            .padding(.vertical, AppSpacing.md)
+            .padding(.horizontal, AppSpacing.lg)
+            .background(
+                RoundedRectangle(cornerRadius: AppTheme.Corners.md, style: .continuous)
+                    .fill(Color.white.opacity(isFocused ? 0.15 : 0.08))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AppTheme.Corners.md, style: .continuous)
+                            .strokeBorder(
+                                errorMessage != nil 
+                                ? AppColors.danger.opacity(0.6)
+                                : (isFocused ? Color.white.opacity(0.3) : Color.white.opacity(0.15)),
+                                lineWidth: isFocused ? 2 : 1
+                            )
+                    )
+            )
+            .focused(focusedField, equals: focusValue)
+            .onSubmit {
+                onCommit?()
+            }
+            
+            if let error = errorMessage {
+                Text(error)
+                    .font(AppTypography.caption)
+                    .foregroundColor(AppColors.danger)
+                    .padding(.leading, AppSpacing.sm)
+            }
+        }
+    }
+}
+
+// MARK: - Loading Button Label
+
+struct LoadingButtonLabel: View {
+    let title: String
+    var icon: String? = nil
+    var isLoading: Bool = false
+    var fullWidth: Bool = true
+    
+    var body: some View {
+        HStack(spacing: AppSpacing.sm) {
+            if isLoading {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    .scaleEffect(0.8)
+            } else if let icon = icon {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+            }
+            
+            Text(title)
+                .font(AppTypography.callout)
+                .fontWeight(.semibold)
+        }
+        .foregroundColor(.white)
+        .frame(maxWidth: fullWidth ? .infinity : nil)
+        .padding(.vertical, AppSpacing.md)
+        .padding(.horizontal, AppSpacing.lg)
+        .background(
+            AppTheme.Gradients.primary
+                .cornerRadius(AppTheme.Corners.lg)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.Corners.lg)
+                .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+        )
+        .appShadow(.floating)
+        .opacity(isLoading ? 0.7 : 1.0)
     }
 }
 

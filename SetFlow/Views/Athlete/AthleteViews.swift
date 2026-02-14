@@ -336,7 +336,7 @@ struct WorkoutDetailView: View {
                 NavigationLink {
                     LiveWorkoutView(workoutDay: workoutDay)
                 } label: {
-                    PrimaryButton(title: "Start workout") {}
+                    PrimaryButtonLabel(title: "Start workout")
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, AppSpacing.lg)

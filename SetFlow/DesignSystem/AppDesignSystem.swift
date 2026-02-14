@@ -19,8 +19,9 @@ enum AppTheme {
         
         // Text
         static let textPrimary = Color("TextPrimary", bundle: .main).resolveFallback(.primary)
-        static let textSecondary = Color("TextSecondary", bundle: .main).resolveFallback(.secondary)
-        static let textMuted = Color("TextMuted", bundle: .main).resolveFallback(.secondary)
+        // Use system colors directly to avoid runtime warnings when asset entries are missing.
+        static let textSecondary: Color = .secondary
+        static let textMuted: Color = .secondary
         
         // States
         static let border = Color("Border", bundle: .main).resolveFallback(.init(.separator))

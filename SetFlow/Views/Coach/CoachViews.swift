@@ -328,7 +328,7 @@ struct PlanBuilderView: View {
                 NavigationLink {
                     WorkoutEditorView()
                 } label: {
-                    PrimaryActionButton(title: "Edit Monday workout", icon: "slider.horizontal.3") { }
+                    PrimaryActionButtonLabel(title: "Edit Monday workout", icon: "slider.horizontal.3")
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, AppSpacing.lg)
@@ -375,7 +375,7 @@ struct WorkoutEditorView: View {
                 NavigationLink {
                     SendUpdateView()
                 } label: {
-                    PrimaryActionButton(title: "Send update to athlete", icon: "paperplane.fill") { }
+                    PrimaryActionButtonLabel(title: "Send update to athlete", icon: "paperplane.fill")
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, AppSpacing.lg)
