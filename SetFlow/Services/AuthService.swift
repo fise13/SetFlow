@@ -55,4 +55,37 @@ final class AuthService: ObservableObject {
         let cred = EmailAuthProvider.credential(withEmail: email, password: password)
         _ = try await user.link(with: cred)
     }
+
+    /// Returns a short, user-friendly message for Auth errors (e.g. "No account with this email").
+    static func userFriendlyMessage(for error: Error) -> String {
+        let ns = error as NSError
+        guard ns.domain.contains("Auth") else { return error.localizedDescription }
+        guard let code = AuthErrorCode(rawValue: ns.code) else { return error.localizedDescription }
+        switch code {
+        case .userNotFound:
+            return "No account found with this email. Check the address or sign up."
+        case .wrongPassword:
+            return "Incorrect password. Try again or use “Forgot password?”."
+        case .invalidEmail:
+            return "Please enter a valid email address."
+        case .invalidCredential:
+            return "Invalid or expired login. Please sign in again with your email and password."
+        case .userDisabled:
+            return "This account has been disabled. Contact support."
+        case .emailAlreadyInUse:
+            return "This email is already registered. Sign in or use “Forgot password?”."
+        case .weakPassword:
+            return "Password is too weak. Use at least 6 characters."
+        case .tooManyRequests:
+            return "Too many attempts. Please try again in a few minutes."
+        case .networkError:
+            return "No internet connection. Check your network and try again."
+        case .operationNotAllowed:
+            return "Email sign-in is not enabled for this app. Contact support."
+        case .requiresRecentLogin:
+            return "Please sign out and sign in again, then try again."
+        default:
+            return error.localizedDescription
+        }
+    }
 }

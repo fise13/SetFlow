@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import FirebaseFirestore
 #if canImport(Charts)
 import Charts
 #endif
@@ -45,46 +46,78 @@ struct AthleteTabRootView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            TabView(selection: $selectedTab) {
-                NavigationStack {
-                    AthleteHomeView(viewModel: homeViewModel)
-                }
-                .tag(AthleteTab.home)
+        TabView(selection: $selectedTab) {
+            NavigationStack {
+                AthleteHomeView(viewModel: homeViewModel)
+            }
+            .tabItem { Label(AthleteTab.home.title, systemImage: AthleteTab.home.systemImage) }
+            .tag(AthleteTab.home)
 
-                NavigationStack {
-                    if let today = homeViewModel.todayWorkout {
-                        WorkoutDetailView(workoutDay: today, athleteId: user.id)
-                    } else {
-                        Text("No workout scheduled for today.")
+            NavigationStack {
+                workoutTabContent
+            }
+            .environment(\.popToHome) { selectedTab = .home }
+            .tabItem { Label(AthleteTab.workout.title, systemImage: AthleteTab.workout.systemImage) }
+            .tag(AthleteTab.workout)
+
+            NavigationStack {
+                AthleteProgressView(logs: homeViewModel.history)
+            }
+            .tabItem { Label(AthleteTab.progress.title, systemImage: AthleteTab.progress.systemImage) }
+            .tag(AthleteTab.progress)
+
+            NavigationStack {
+                AthleteProfileSettingsView(user: user, appState: appState)
+            }
+            .tabItem { Label(AthleteTab.profile.title, systemImage: AthleteTab.profile.systemImage) }
+            .tag(AthleteTab.profile)
+        }
+        .tabViewStyle(.automatic)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            homeViewModel.load()
+            NotificationScheduler.shared.requestAuthorization { _ in }
+        }
+        .onChange(of: selectedTab) { _, newTab in
+            if newTab == .home { homeViewModel.load() }
+        }
+    }
+
+    @ViewBuilder
+    private var workoutTabContent: some View {
+        if let today = homeViewModel.todayWorkout {
+            WorkoutDetailView(workoutDay: today, athleteId: user.id)
+        } else {
+            workoutTabEmptyView
+        }
+    }
+
+    private var workoutTabEmptyView: some View {
+        ZStack {
+            AppColors.background.ignoresSafeArea()
+            VStack(spacing: AppSpacing.xl) {
+                Spacer()
+                GlassCard {
+                    VStack(spacing: AppSpacing.lg) {
+                        Image(systemName: "calendar.badge.clock")
+                            .font(.system(size: 44))
+                            .foregroundColor(AppColors.textMuted)
+                        Text("No workout today")
+                            .font(AppTypography.title2)
+                        Text("Your coach hasn’t scheduled a session for today. Check back tomorrow or look at your week on Home.")
                             .font(AppTypography.body)
                             .foregroundColor(AppColors.textSecondary)
-                            .padding()
-                            .navigationTitle("Workout")
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
                     }
+                    .padding(.vertical, AppSpacing.xxl)
                 }
-                .environment(\.popToHome) { selectedTab = .home }
-                .tag(AthleteTab.workout)
-
-                NavigationStack {
-                    AthleteProgressView(logs: homeViewModel.history)
-                }
-                .tag(AthleteTab.progress)
-
-                NavigationStack {
-                    AthleteProfileSettingsView(user: user, appState: appState)
-                }
-                .tag(AthleteTab.profile)
+                .padding(.horizontal, AppSpacing.lg)
+                Spacer()
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .onAppear { homeViewModel.load() }
-            .onChange(of: selectedTab) { _, newTab in
-                if newTab == .home { homeViewModel.load() }
-            }
-
-            AthleteTabBar(selectedTab: $selectedTab)
         }
-        .ignoresSafeArea(edges: .bottom)
+        .navigationTitle("Workout")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -134,6 +167,8 @@ final class AthleteHomeViewModel: ObservableObject {
     let user: User
     private let planService: WorkoutPlanService
     private let logService: WorkoutLogService
+    private var planListener: ListenerRegistration?
+    private var logListener: ListenerRegistration?
 
     @Published var plans: [WorkoutPlan] = []
     @Published var upcomingWorkouts: [WorkoutDay] = []
@@ -145,29 +180,85 @@ final class AthleteHomeViewModel: ObservableObject {
         self.logService = logService
     }
 
+    deinit {
+        planListener?.remove()
+        logListener?.remove()
+    }
+
     var todayWorkout: WorkoutDay? {
         let today = Calendar.current.startOfDay(for: Date())
         return upcomingWorkouts.first { Calendar.current.isDate($0.date, inSameDayAs: today) }
     }
 
+    /// Consecutive days with at least one workout, ending today or yesterday.
+    var streakDays: Int {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let workoutDays = Set(history.map { cal.startOfDay(for: $0.date) })
+        var count = 0
+        var d = today
+        while workoutDays.contains(d) {
+            count += 1
+            guard let next = cal.date(byAdding: .day, value: -1, to: d) else { break }
+            d = next
+        }
+        return count
+    }
+
+    /// Total volume (kg) for the current calendar week.
+    var volumeThisWeek: Double {
+        let cal = Calendar.current
+        let now = Date()
+        guard let weekStart = cal.date(from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)) else { return 0 }
+        return history
+            .filter { cal.startOfDay(for: $0.date) >= weekStart }
+            .reduce(0) { $0 + $1.totalVolume }
+    }
+
+    /// Title of the next planned workout after today, or "Rest".
+    var nextWorkoutTitle: String {
+        let today = Calendar.current.startOfDay(for: Date())
+        let next = upcomingWorkouts.first { Calendar.current.startOfDay(for: $0.date) > today }
+        return next?.title ?? "Rest"
+    }
+
+    /// Progress 0...1 for today's workout if it was logged, else 0.
+    var todayProgress: Double {
+        guard let today = todayWorkout else { return 0 }
+        let cal = Calendar.current
+        let hasLoggedToday = history.contains { cal.isDate($0.date, inSameDayAs: Date()) && $0.workoutTitle == today.title }
+        return hasLoggedToday ? 1 : 0
+    }
+
     @MainActor
     func load() {
-        Task {
-            do {
-                plans = try await planService.plansForAthlete(athleteId: user.id)
-                upcomingWorkouts = plans.flatMap { $0.days }.sorted { $0.date < $1.date }
-                history = try await logService.logsForAthlete(athleteId: user.id)
-            } catch {
-                plans = []
-                upcomingWorkouts = []
-                history = []
+        planListener?.remove()
+        logListener?.remove()
+        planListener = planService.plansForAthleteListener(athleteId: user.id) { [weak self] plans in
+            self?.plans = plans
+            let upcoming = plans.flatMap { $0.days }.sorted { $0.date < $1.date }
+            self?.upcomingWorkouts = upcoming
+            if let today = upcoming.first(where: { Calendar.current.isDate($0.date, inSameDayAs: Date()) }) {
+                WatchConnectivityManager.shared.sendTodayWorkout(today)
+                let prefs = AppPreferences.shared
+                if prefs.notificationsEnabled {
+                    NotificationScheduler.shared.scheduleWorkoutReminderIfNeeded(workoutTitle: today.title, workoutDate: today.date, reminderHour: prefs.reminderHour)
+                } else {
+                    NotificationScheduler.shared.cancelWorkoutReminders()
+                }
+            } else {
+                NotificationScheduler.shared.cancelWorkoutReminders()
             }
+        }
+        logListener = logService.logsForAthleteListener(athleteId: user.id) { [weak self] logs in
+            self?.history = logs
         }
     }
 }
 
 struct AthleteHomeView: View {
     @ObservedObject var viewModel: AthleteHomeViewModel
+    @ObservedObject private var prefs = AppPreferences.shared
     @State private var selectedDate: Date = Date()
     
     var body: some View {
@@ -233,7 +324,7 @@ struct AthleteHomeView: View {
                         title: today.title,
                         subtitle: "Today • \(today.focus)",
                         detail: "\(today.exercises.count) exercises",
-                        progress: 0.35
+                        progress: viewModel.todayProgress
                     )
                     .padding(.horizontal, AppSpacing.lg)
                 }
@@ -261,12 +352,12 @@ struct AthleteHomeView: View {
     }
     
     private var quickStats: some View {
-        let volume = "\(Int(viewModel.history.first?.totalVolume ?? 12400)) kg"
-        let streak = "5 days"
-        let nextWorkout = viewModel.upcomingWorkouts.dropFirst().first?.title ?? "Rest"
+        let volume = prefs.displayVolume(kg: viewModel.volumeThisWeek)
+        let streak = viewModel.streakDays == 0 ? "0" : "\(viewModel.streakDays)"
+        let streakSubtitle = viewModel.streakDays == 1 ? "day" : "days"
         
         return HStack(spacing: AppSpacing.md) {
-            AthleteStatTile(title: "Streak", value: streak, subtitle: "in a row", icon: "flame.fill")
+            AthleteStatTile(title: "Streak", value: streak, subtitle: streakSubtitle + " in a row", icon: "flame.fill")
             AthleteStatTile(title: "Volume", value: volume, subtitle: "this week", icon: "chart.bar.fill")
         }
         .padding(.horizontal, AppSpacing.lg)
@@ -274,7 +365,7 @@ struct AthleteHomeView: View {
         .overlay(
             HStack {
                 Spacer()
-                AthleteStatTile(title: "Next", value: nextWorkout, subtitle: "planned", icon: "calendar.badge.clock")
+                AthleteStatTile(title: "Next", value: viewModel.nextWorkoutTitle, subtitle: "planned", icon: "calendar.badge.clock")
                     .frame(width: 170)
             }
             .padding(.trailing, AppSpacing.lg),
@@ -284,33 +375,66 @@ struct AthleteHomeView: View {
     
     private var recentWorkouts: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            SectionHeader(title: "Recent", actionTitle: "See all") {
-                // Navigation handled by toolbar History button
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.sm) {
+                Text("Recent")
+                    .font(AppTypography.headline)
+                    .foregroundColor(AppColors.textPrimary)
+                Spacer()
+                NavigationLink {
+                    HistoryView(logs: viewModel.history)
+                } label: {
+                    Text("See all")
+                        .font(AppTypography.footnote)
+                        .foregroundColor(AppColors.accentSecondary)
+                }
+                .buttonStyle(.plain)
             }
-            VStack(spacing: AppSpacing.sm) {
-                ForEach(Array(viewModel.history.prefix(3))) { log in
-                    GlassCard(cornerRadius: AppTheme.Corners.md) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(log.workoutTitle)
-                                    .font(AppTypography.body.weight(.semibold))
-                                Text(dateString(log.date))
-                                    .font(AppTypography.footnote)
-                                    .foregroundColor(AppColors.textSecondary)
-                            }
-                            Spacer()
-                            VStack(alignment: .trailing, spacing: 4) {
-                                Text("\(log.durationMinutes) min")
-                                    .font(AppTypography.footnote)
-                                    .foregroundColor(AppColors.textSecondary)
-                                Text("★ \(log.rating)")
-                                    .font(AppTypography.footnote)
+            .padding(.horizontal, AppSpacing.lg)
+            .padding(.vertical, AppSpacing.sm)
+            
+            if viewModel.history.isEmpty {
+                GlassCard(cornerRadius: AppTheme.Corners.md) {
+                    VStack(spacing: AppSpacing.sm) {
+                        Image(systemName: "figure.run")
+                            .font(.system(size: 32))
+                            .foregroundColor(AppColors.textMuted)
+                        Text("No workouts yet")
+                            .font(AppTypography.headline)
+                        Text("Complete a workout to see it here.")
+                            .font(AppTypography.footnote)
+                            .foregroundColor(AppColors.textSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, AppSpacing.xl)
+                }
+                .padding(.horizontal, AppSpacing.lg)
+            } else {
+                VStack(spacing: AppSpacing.sm) {
+                    ForEach(Array(viewModel.history.prefix(3))) { log in
+                        GlassCard(cornerRadius: AppTheme.Corners.md) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(log.workoutTitle)
+                                        .font(AppTypography.body.weight(.semibold))
+                                    Text(dateString(log.date))
+                                        .font(AppTypography.footnote)
+                                        .foregroundColor(AppColors.textSecondary)
+                                }
+                                Spacer()
+                                VStack(alignment: .trailing, spacing: 4) {
+                                    Text("\(log.durationMinutes) min")
+                                        .font(AppTypography.footnote)
+                                        .foregroundColor(AppColors.textSecondary)
+                                    Text(String(repeating: "★", count: log.rating))
+                                        .font(AppTypography.footnote)
+                                }
                             }
                         }
                     }
                 }
+                .padding(.horizontal, AppSpacing.lg)
             }
-            .padding(.horizontal, AppSpacing.lg)
         }
     }
     
@@ -350,7 +474,7 @@ struct WorkoutDetailView: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         ForEach(workoutDay.exercises) { exercise in
-                            ExerciseRow(exercise: exercise)
+                            ExerciseRow(exercise: exercise, weightDisplay: AppPreferences.shared.displayWeight(kg: exercise.weight))
                             Divider()
                         }
                     }
@@ -379,6 +503,12 @@ final class LiveWorkoutViewModel: ObservableObject {
     @Published var currentSet: Int = 1
     @Published var isResting: Bool = false
     @Published var restRemaining: Int = 60
+    @Published var completedSetsCount: Int = 0
+    @Published var totalVolume: Double = 0
+    @Published var workoutStartTime: Date = Date()
+    
+    private var restTimer: Timer?
+    private var restIsBetweenExercises: Bool = false
     
     let workoutDay: WorkoutDay
     
@@ -386,22 +516,109 @@ final class LiveWorkoutViewModel: ObservableObject {
         self.workoutDay = workoutDay
     }
     
-    var currentExercise: Exercise {
-        workoutDay.exercises[currentExerciseIndex]
+    var currentExercise: Exercise? {
+        guard currentExerciseIndex < workoutDay.exercises.count else { return nil }
+        return workoutDay.exercises[currentExerciseIndex]
     }
     
     var progress: Double {
         let totalSets = workoutDay.exercises.reduce(0) { $0 + $1.sets }
-        let completedSetsBefore = workoutDay.exercises.prefix(currentExerciseIndex).reduce(0) { $0 + $1.sets }
-        let completed = completedSetsBefore + (currentSet - 1)
-        return totalSets == 0 ? 0 : Double(completed) / Double(totalSets)
+        return totalSets == 0 ? 0 : Double(completedSetsCount) / Double(totalSets)
+    }
+    
+    var isWorkoutComplete: Bool {
+        currentExerciseIndex >= workoutDay.exercises.count
+    }
+    
+    @MainActor
+    func doneSet() {
+        guard let ex = currentExercise else { return }
+        HapticManager.impact()
+        completedSetsCount += 1
+        totalVolume += ex.weight * Double(ex.reps)
+        if currentSet >= ex.sets {
+            if currentExerciseIndex + 1 < workoutDay.exercises.count {
+                restIsBetweenExercises = true
+                startRest(afterRest: { [weak self] in self?.advanceToNextExercise() })
+            } else {
+                currentExerciseIndex += 1
+            }
+        } else {
+            currentSet += 1
+            restIsBetweenExercises = false
+            startRest(afterRest: { })
+        }
+    }
+    
+    @MainActor
+    private func startRest(afterRest: @escaping () -> Void) {
+        guard let ex = currentExercise else {
+            isResting = false
+            afterRest()
+            return
+        }
+        isResting = true
+        restRemaining = ex.restSeconds
+        restTimer?.invalidate()
+        restTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.tickRest(afterRest: afterRest)
+            }
+        }
+        RunLoop.main.add(restTimer!, forMode: .common)
+    }
+    
+    @MainActor
+    private func tickRest(afterRest: @escaping () -> Void) {
+        restRemaining -= 1
+        if restRemaining <= 3, restRemaining > 0 {
+            HapticManager.impact()
+        }
+        if restRemaining <= 0 {
+            restTimer?.invalidate()
+            restTimer = nil
+            isResting = false
+            HapticManager.success()
+            afterRest()
+        }
+    }
+    
+    @MainActor
+    func skipRest() {
+        restTimer?.invalidate()
+        restTimer = nil
+        isResting = false
+        if restIsBetweenExercises {
+            advanceToNextExercise()
+        }
+    }
+    
+    @MainActor
+    private func advanceToNextExercise() {
+        currentExerciseIndex += 1
+        currentSet = 1
+    }
+    
+    func buildLog(athleteId: String) -> WorkoutLog {
+        let durationMinutes = max(1, Int(Date().timeIntervalSince(workoutStartTime) / 60))
+        return WorkoutLog(
+            id: "temp-\(UUID().uuidString)",
+            athleteId: athleteId,
+            workoutTitle: workoutDay.title,
+            date: Date(),
+            durationMinutes: durationMinutes,
+            totalSets: completedSetsCount,
+            totalVolume: totalVolume,
+            rating: 5
+        )
     }
 }
 
 struct LiveWorkoutView: View {
     @ObservedObject var viewModel: LiveWorkoutViewModel
-    @State private var animateRing: Bool = false
+    @ObservedObject private var prefs = AppPreferences.shared
     let athleteId: String
+    @State private var showSummary = false
 
     init(workoutDay: WorkoutDay, athleteId: String) {
         self.viewModel = LiveWorkoutViewModel(workoutDay: workoutDay)
@@ -412,91 +629,112 @@ struct LiveWorkoutView: View {
         ZStack {
             AppColors.background.ignoresSafeArea()
             VStack(spacing: AppSpacing.xl) {
-                VStack(spacing: AppSpacing.sm) {
-                    Text(viewModel.workoutDay.title)
-                        .font(AppTypography.headline)
-                    Text("Exercise \(viewModel.currentExerciseIndex + 1) of \(viewModel.workoutDay.exercises.count)")
-                        .font(AppTypography.footnote)
-                        .foregroundColor(AppColors.textSecondary)
-                }
-                
-                CardView {
-                    VStack(spacing: AppSpacing.lg) {
-                        Text(viewModel.currentExercise.name)
-                            .font(AppTypography.title2)
-                        Text("\(viewModel.currentExercise.sets)x\(viewModel.currentExercise.reps)  •  \(Int(viewModel.currentExercise.weight)) kg")
-                            .font(AppTypography.body)
+                if viewModel.isWorkoutComplete {
+                    workoutCompleteView
+                } else if let ex = viewModel.currentExercise {
+                    VStack(spacing: AppSpacing.sm) {
+                        Text(viewModel.workoutDay.title)
+                            .font(AppTypography.headline)
+                        Text("Exercise \(viewModel.currentExerciseIndex + 1) of \(viewModel.workoutDay.exercises.count)")
+                            .font(AppTypography.footnote)
                             .foregroundColor(AppColors.textSecondary)
-                        
-                        ZStack {
-                            Circle()
-                                .stroke(AppColors.progressBackground, lineWidth: 12)
-                            Circle()
-                                .trim(from: 0, to: CGFloat(viewModel.progress))
-                                .stroke(AppColors.accent, style: StrokeStyle(lineWidth: 12, lineCap: .round))
-                                .rotationEffect(.degrees(-90))
-                                .animation(.easeInOut(duration: 0.3), value: viewModel.progress)
-                            VStack {
-                                Text("Set \(viewModel.currentSet)")
-                                    .font(AppTypography.headline)
-                                Text("\(Int(viewModel.progress * 100))%")
-                                    .font(AppTypography.caption)
-                                    .foregroundColor(AppColors.textSecondary)
+                    }
+
+                    CardView {
+                        VStack(spacing: AppSpacing.lg) {
+                            Text(ex.name)
+                                .font(AppTypography.title2)
+                            Text("\(ex.sets)x\(ex.reps)  •  \(prefs.displayWeight(kg: ex.weight))")
+                                .font(AppTypography.body)
+                                .foregroundColor(AppColors.textSecondary)
+
+                            ZStack {
+                                Circle()
+                                    .stroke(AppColors.progressBackground, lineWidth: 12)
+                                Circle()
+                                    .trim(from: 0, to: CGFloat(viewModel.progress))
+                                    .stroke(AppColors.accent, style: StrokeStyle(lineWidth: 12, lineCap: .round))
+                                    .rotationEffect(.degrees(-90))
+                                    .animation(.easeInOut(duration: 0.3), value: viewModel.progress)
+                                VStack {
+                                    Text("Set \(viewModel.currentSet) / \(ex.sets)")
+                                        .font(AppTypography.headline)
+                                    Text("\(Int(viewModel.progress * 100))%")
+                                        .font(AppTypography.caption)
+                                        .foregroundColor(AppColors.textSecondary)
+                                }
+                            }
+                            .frame(height: 180)
+                        }
+                    }
+                    .padding(.horizontal, AppSpacing.lg)
+
+                    if viewModel.isResting {
+                        VStack(spacing: AppSpacing.sm) {
+                            Text("Rest")
+                                .font(AppTypography.headline)
+                            Text("\(viewModel.restRemaining)s")
+                                .font(AppTypography.largeTitle)
+                            CustomProgressBar(progress: Double(viewModel.restRemaining) / Double(ex.restSeconds))
+                                .frame(height: 12)
+                                .padding(.horizontal, AppSpacing.lg)
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    }
+
+                    HStack(spacing: AppSpacing.md) {
+                        if viewModel.isResting {
+                            PrimaryButton(title: "Skip rest", fullWidth: true) {
+                                viewModel.skipRest()
+                            }
+                        } else {
+                            PrimaryButton(title: "Done set", fullWidth: true) {
+                                viewModel.doneSet()
                             }
                         }
-                        .frame(height: 180)
                     }
-                }
-                .padding(.horizontal, AppSpacing.lg)
-                
-                if viewModel.isResting {
-                    VStack(spacing: AppSpacing.sm) {
-                        Text("Rest")
-                            .font(AppTypography.headline)
-                        Text("\(viewModel.restRemaining)s")
-                            .font(AppTypography.largeTitle)
-                        CustomProgressBar(progress: Double(viewModel.restRemaining) / Double(viewModel.currentExercise.restSeconds))
-                            .frame(height: 12)
-                            .padding(.horizontal, AppSpacing.lg)
-                    }
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
-                }
-                
-                HStack(spacing: AppSpacing.md) {
-                    SecondaryButton(title: "Prev", fullWidth: true) {
-                        // Placeholder navigation between exercises
-                    }
-                    PrimaryButton(title: viewModel.isResting ? "Skip rest" : "Done set", fullWidth: true) {
-                        HapticManager.impact()
-                        // Placeholder state machine
-                    }
-                }
-                .padding(.horizontal, AppSpacing.lg)
-                
-                NavigationLink {
-                    WorkoutSummaryView(
-                        log: WorkoutLog(
-                            id: "temp-\(UUID().uuidString)",
-                            athleteId: athleteId,
-                            workoutTitle: viewModel.workoutDay.title,
-                            date: Date(),
-                            durationMinutes: 52,
-                            totalSets: viewModel.workoutDay.exercises.reduce(0) { $0 + $1.sets },
-                            totalVolume: 14000,
-                            rating: 5
-                        )
-                    )
-                } label: {
-                    Text("Finish workout")
+                    .padding(.horizontal, AppSpacing.lg)
+                } else {
+                    Text("No exercises")
                         .font(AppTypography.body)
                         .foregroundColor(AppColors.textSecondary)
-                        .padding(.vertical, AppSpacing.sm)
                 }
-                .padding(.bottom, AppSpacing.lg)
+
+                if !viewModel.isWorkoutComplete && viewModel.completedSetsCount > 0 {
+                    Button {
+                        showSummary = true
+                    } label: {
+                        Text("End workout early")
+                            .font(AppTypography.footnote)
+                            .foregroundColor(AppColors.textSecondary)
+                            .padding(.vertical, AppSpacing.sm)
+                    }
+                    .padding(.bottom, AppSpacing.lg)
+                }
             }
         }
         .navigationTitle("Live")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: $showSummary) {
+            WorkoutSummaryView(log: viewModel.buildLog(athleteId: athleteId))
+        }
+    }
+
+    private var workoutCompleteView: some View {
+        VStack(spacing: AppSpacing.xl) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 60))
+                .foregroundColor(AppColors.accent)
+            Text("All sets complete!")
+                .font(AppTypography.title2)
+            Text("\(viewModel.completedSetsCount) sets • \(prefs.displayVolume(kg: viewModel.totalVolume)) volume")
+                .font(AppTypography.body)
+                .foregroundColor(AppColors.textSecondary)
+            PrimaryButton(title: "See summary") {
+                showSummary = true
+            }
+            .padding(.horizontal, AppSpacing.lg)
+        }
     }
 }
 
@@ -507,6 +745,15 @@ struct WorkoutSummaryView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.popToHome) private var popToHome
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var prefs = AppPreferences.shared
+    @State private var rating: Int
+    @State private var isSaving = false
+    @State private var saveError: String?
+
+    init(log: WorkoutLog) {
+        self.log = log
+        _rating = State(initialValue: log.rating)
+    }
 
     var body: some View {
         ZStack {
@@ -530,26 +777,78 @@ struct WorkoutSummaryView: View {
                     VStack(alignment: .leading, spacing: AppSpacing.md) {
                         summaryRow(label: "Duration", value: "\(log.durationMinutes) min")
                         summaryRow(label: "Total sets", value: "\(log.totalSets)")
-                        summaryRow(label: "Volume", value: "\(Int(log.totalVolume)) kg")
-                        summaryRow(label: "Rating", value: String(repeating: "★", count: log.rating))
+                        summaryRow(label: "Volume", value: prefs.displayVolume(kg: log.totalVolume))
+                        HStack {
+                            Text("Rating")
+                                .font(AppTypography.body)
+                            Spacer()
+                            ratingPicker
+                        }
                     }
                 }
                 .padding(.horizontal, AppSpacing.lg)
+
+                if let err = saveError {
+                    Text(err)
+                        .font(AppTypography.footnote)
+                        .foregroundColor(AppColors.danger)
+                        .padding(.horizontal)
+                }
 
                 Spacer()
 
-                PrimaryButton(title: "Back to home") {
-                    HapticManager.success()
-                    Task {
-                        try? await appState.logService.saveLog(log)
-                        popToHome?()
-                    }
+                PrimaryButton(title: isSaving ? "Saving…" : "Save and go home", fullWidth: true) {
+                    saveAndGoHome()
                 }
                 .padding(.horizontal, AppSpacing.lg)
                 .padding(.bottom, AppSpacing.lg)
+                .disabled(isSaving)
             }
         }
         .navigationBarBackButtonHidden(true)
+    }
+
+    private var ratingPicker: some View {
+        HStack(spacing: 4) {
+            ForEach(1...5, id: \.self) { star in
+                Button {
+                    HapticManager.selection()
+                    rating = star
+                } label: {
+                    Image(systemName: star <= rating ? "star.fill" : "star")
+                        .font(.title2)
+                        .foregroundColor(star <= rating ? Color.yellow : AppColors.textMuted)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func saveAndGoHome() {
+        saveError = nil
+        isSaving = true
+        let logToSave = WorkoutLog(
+            id: log.id,
+            athleteId: log.athleteId,
+            workoutTitle: log.workoutTitle,
+            date: log.date,
+            durationMinutes: log.durationMinutes,
+            totalSets: log.totalSets,
+            totalVolume: log.totalVolume,
+            rating: rating
+        )
+        let service = appState.logService
+        let popHome = popToHome
+        Task { @MainActor in
+            do {
+                try await service.saveLog(logToSave)
+                HapticManager.success()
+                popHome?()
+            } catch {
+                saveError = error.localizedDescription
+            }
+            isSaving = false
+        }
     }
     
     private func summaryRow(label: String, value: String) -> some View {
@@ -567,54 +866,77 @@ struct WorkoutSummaryView: View {
 
 struct HistoryView: View {
     let logs: [WorkoutLog]
-    
+    @ObservedObject private var prefs = AppPreferences.shared
+
+    private var volumeThisWeek: Double {
+        let cal = Calendar.current
+        let now = Date()
+        guard let weekStart = cal.date(from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)) else { return 0 }
+        return logs
+            .filter { cal.startOfDay(for: $0.date) >= weekStart }
+            .reduce(0) { $0 + $1.totalVolume }
+    }
+
     var body: some View {
         ZStack {
             AppColors.background.ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.lg) {
                     SectionHeader(title: "History", actionTitle: nil, action: nil)
-                    VStack(spacing: 0) {
-                        ForEach(logs) { log in
-                            HStack {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(log.workoutTitle)
-                                        .font(AppTypography.body.weight(.semibold))
-                                    Text(dateString(log.date))
-                                        .font(AppTypography.footnote)
-                                        .foregroundColor(AppColors.textSecondary)
-                                }
-                                Spacer()
-                                Text("\(log.durationMinutes) min")
+                    if logs.isEmpty {
+                        GlassCard {
+                            VStack(spacing: AppSpacing.sm) {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .font(.system(size: 36))
+                                    .foregroundColor(AppColors.textMuted)
+                                Text("No workouts logged yet")
+                                    .font(AppTypography.headline)
+                                Text("Complete a workout from the Workout tab to see it here.")
                                     .font(AppTypography.footnote)
                                     .foregroundColor(AppColors.textSecondary)
+                                    .multilineTextAlignment(.center)
                             }
-                            .padding(.vertical, AppSpacing.sm)
-                            Divider()
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, AppSpacing.xl)
                         }
+                        .padding(.horizontal, AppSpacing.lg)
+                    } else {
+                        VStack(spacing: 0) {
+                            ForEach(logs) { log in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(log.workoutTitle)
+                                            .font(AppTypography.body.weight(.semibold))
+                                        Text(dateString(log.date))
+                                            .font(AppTypography.footnote)
+                                            .foregroundColor(AppColors.textSecondary)
+                                    }
+                                    Spacer()
+                                    VStack(alignment: .trailing, spacing: 4) {
+                                        Text("\(log.durationMinutes) min")
+                                            .font(AppTypography.footnote)
+                                            .foregroundColor(AppColors.textSecondary)
+                                        Text(String(repeating: "★", count: log.rating))
+                                            .font(AppTypography.footnote)
+                                    }
+                                }
+                                .padding(.vertical, AppSpacing.sm)
+                                Divider()
+                            }
+                        }
+                        .padding(.horizontal, AppSpacing.lg)
                     }
-                    .padding(.horizontal, AppSpacing.lg)
                     
-                    SectionHeader(title: "Progress", actionTitle: nil, action: nil)
-                    CardView {
-                        VStack(alignment: .leading, spacing: AppSpacing.md) {
-                            Text("Weekly volume")
-                                .font(AppTypography.headline)
-                            Text("Placeholder graph – connect to real data later.")
-                                .font(AppTypography.footnote)
-                                .foregroundColor(AppColors.textSecondary)
-                            Rectangle()
-                                .fill(AppColors.progressBackground)
-                                .frame(height: 120)
-                                .cornerRadius(16)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4]))
-                                        .foregroundColor(AppColors.border)
-                                )
+                    if !logs.isEmpty {
+                        SectionHeader(title: "This week", subtitle: "Total volume", actionTitle: nil, action: nil)
+                        CardView {
+                            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                                Text(prefs.displayVolume(kg: volumeThisWeek))
+                                    .font(AppTypography.title2)
+                            }
                         }
+                        .padding(.horizontal, AppSpacing.lg)
                     }
-                    .padding(.horizontal, AppSpacing.lg)
                 }
                 .padding(.vertical, AppSpacing.lg)
             }
@@ -634,6 +956,25 @@ struct HistoryView: View {
 
 struct AthleteProgressView: View {
     let logs: [WorkoutLog]
+    @ObservedObject private var prefs = AppPreferences.shared
+
+    private var streakDays: Int {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let workoutDays = Set(logs.map { cal.startOfDay(for: $0.date) })
+        var count = 0
+        var d = today
+        while workoutDays.contains(d) {
+            count += 1
+            guard let next = cal.date(byAdding: .day, value: -1, to: d) else { break }
+            d = next
+        }
+        return count
+    }
+
+    private var maxVolumeLogged: Double {
+        logs.map(\.totalVolume).max() ?? 0
+    }
     
     var body: some View {
         ZStack {
@@ -651,28 +992,35 @@ struct AthleteProgressView: View {
                                 .font(AppTypography.headline)
                             
                             #if canImport(Charts)
-                            Chart {
-                                ForEach(logs) { log in
-                                    BarMark(
-                                        x: .value("Date", log.date),
-                                        y: .value("Volume", log.totalVolume)
-                                    )
-                                    .foregroundStyle(AppTheme.Gradients.primary)
+                            if logs.isEmpty {
+                                Text("Complete workouts to see your volume chart.")
+                                    .font(AppTypography.footnote)
+                                    .foregroundColor(AppColors.textSecondary)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 40)
+                            } else {
+                                Chart {
+                                    ForEach(logs.prefix(30)) { log in
+                                        BarMark(
+                                            x: .value("Date", log.date),
+                                            y: .value("Volume", log.totalVolume)
+                                        )
+                                        .foregroundStyle(AppTheme.Gradients.primary)
+                                    }
                                 }
+                                .chartXAxis {
+                                    AxisMarks(values: .stride(by: .day, count: 2))
+                                }
+                                .frame(height: 200)
                             }
-                            .chartXAxis {
-                                AxisMarks(values: .stride(by: .day, count: 2))
-                            }
-                            .frame(height: 200)
                             #else
                             Rectangle()
                                 .fill(AppColors.progressBackground)
                                 .frame(height: 200)
                                 .cornerRadius(AppTheme.Corners.lg)
                                 .overlay(
-                                    Text("Charts placeholder\n(Charts framework not available)")
+                                    Text(logs.isEmpty ? "Complete workouts to see volume" : "Volume chart")
                                         .font(AppTypography.footnote)
-                                        .multilineTextAlignment(.center)
                                         .foregroundColor(AppColors.textSecondary)
                                 )
                             #endif
@@ -681,20 +1029,20 @@ struct AthleteProgressView: View {
                     
                     SectionHeader(
                         title: "Highlights",
-                        subtitle: "Streaks and personal records"
+                        subtitle: "From your logged workouts"
                     )
                     
                     VStack(spacing: AppSpacing.md) {
                         AthleteStatTile(
-                            title: "Longest streak",
-                            value: "9 days",
-                            subtitle: "All time",
+                            title: "Current streak",
+                            value: streakDays == 0 ? "—" : "\(streakDays)",
+                            subtitle: streakDays == 1 ? "day" : "days in a row",
                             icon: "flame.fill"
                         )
                         AthleteStatTile(
-                            title: "Heaviest set",
-                            value: "180 kg",
-                            subtitle: "Deadlift triple",
+                            title: "Heaviest workout",
+                            value: maxVolumeLogged == 0 ? "—" : prefs.displayVolume(kg: maxVolumeLogged),
+                            subtitle: "Single session volume",
                             icon: "scalemass"
                         )
                     }
@@ -713,62 +1061,102 @@ struct AthleteProgressView: View {
 struct AthleteProfileSettingsView: View {
     let user: User
     @ObservedObject var appState: AppState
+    @ObservedObject private var prefs = AppPreferences.shared
+    @State private var showEditProfile = false
+    @State private var showUnitsPicker = false
+    @State private var showReminderTime = false
 
     var body: some View {
         ZStack {
             AppColors.background.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: AppSpacing.lg) {
-                    GlassCard {
-                        HStack(spacing: AppSpacing.md) {
-                            ZStack {
-                                Circle()
-                                    .fill(AppColors.accent.opacity(0.2))
-                                Text(String(user.name.prefix(1)))
-                                    .font(AppTypography.title1)
-                                    .foregroundColor(AppColors.accent)
-                            }
-                            .frame(width: 56, height: 56)
+                    Button {
+                        showEditProfile = true
+                    } label: {
+                        GlassCard {
+                            HStack(spacing: AppSpacing.md) {
+                                ZStack {
+                                    Circle()
+                                        .fill(AppColors.accent.opacity(0.2))
+                                    Text(String(user.name.prefix(1)))
+                                        .font(AppTypography.title1)
+                                        .foregroundColor(AppColors.accent)
+                                }
+                                .frame(width: 56, height: 56)
 
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(user.name)
-                                    .font(AppTypography.title2)
-                                Text("Athlete profile")
-                                    .font(AppTypography.footnote)
-                                    .foregroundColor(AppColors.textSecondary)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(user.name)
+                                        .font(AppTypography.title2)
+                                    Text("Athlete profile • Tap to edit")
+                                        .font(AppTypography.footnote)
+                                        .foregroundColor(AppColors.textSecondary)
+                                }
+                                Spacer()
+                                Image(systemName: "pencil.circle")
+                                    .font(.title2)
+                                    .foregroundColor(AppColors.textMuted)
                             }
-                            Spacer()
                         }
                     }
+                    .buttonStyle(.plain)
                     .padding(.horizontal, AppSpacing.lg)
 
                     SectionHeader(title: "Preferences", actionTitle: nil, action: nil)
 
                     VStack(spacing: AppSpacing.md) {
-                        GlassCard(cornerRadius: AppTheme.Corners.md) {
-                            HStack {
-                                Text("Units")
-                                    .font(AppTypography.body)
-                                Spacer()
-                                Text("Kilograms")
-                                    .font(AppTypography.body)
-                                    .foregroundColor(AppColors.textSecondary)
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(AppColors.textSecondary)
+                        Button {
+                            showUnitsPicker = true
+                        } label: {
+                            GlassCard(cornerRadius: AppTheme.Corners.md) {
+                                HStack {
+                                    Text("Units")
+                                        .font(AppTypography.body)
+                                    Spacer()
+                                    Text(prefs.weightUnit.displayName)
+                                        .font(AppTypography.body)
+                                        .foregroundColor(AppColors.textSecondary)
+                                    Image(systemName: "chevron.right")
+                                        .foregroundColor(AppColors.textSecondary)
+                                }
                             }
                         }
+                        .buttonStyle(.plain)
 
                         GlassCard(cornerRadius: AppTheme.Corners.md) {
                             HStack {
                                 Text("Notifications")
                                     .font(AppTypography.body)
                                 Spacer()
-                                Text("Enabled")
-                                    .font(AppTypography.body)
-                                    .foregroundColor(AppColors.textSecondary)
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(AppColors.textSecondary)
+                                Toggle("", isOn: $prefs.notificationsEnabled)
+                                    .labelsHidden()
+                                    .tint(AppColors.accent)
                             }
+                            .onChange(of: prefs.notificationsEnabled) { _, enabled in
+                                if enabled {
+                                    NotificationScheduler.shared.requestAuthorization { _ in }
+                                }
+                            }
+                        }
+
+                        if prefs.notificationsEnabled {
+                            Button {
+                                showReminderTime = true
+                            } label: {
+                                GlassCard(cornerRadius: AppTheme.Corners.md) {
+                                    HStack {
+                                        Text("Reminder time")
+                                            .font(AppTypography.body)
+                                        Spacer()
+                                        Text(reminderTimeString)
+                                            .font(AppTypography.body)
+                                            .foregroundColor(AppColors.textSecondary)
+                                        Image(systemName: "chevron.right")
+                                            .foregroundColor(AppColors.textSecondary)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding(.horizontal, AppSpacing.lg)
@@ -790,6 +1178,168 @@ struct AthleteProfileSettingsView: View {
         }
         .navigationTitle("Profile")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showEditProfile) {
+            EditProfileSheet(user: user, appState: appState, onDismiss: { showEditProfile = false })
+        }
+        .sheet(isPresented: $showUnitsPicker) {
+            UnitsPickerSheet(onDismiss: { showUnitsPicker = false })
+        }
+        .sheet(isPresented: $showReminderTime) {
+            ReminderTimeSheet(onDismiss: { showReminderTime = false })
+        }
+    }
+
+    private var reminderTimeString: String {
+        let h = prefs.reminderHour
+        if h == 0 { return "12:00 AM" }
+        if h == 12 { return "12:00 PM" }
+        return h < 12 ? "\(h):00 AM" : "\(h - 12):00 PM"
+    }
+}
+
+// MARK: - Edit Profile Sheet
+
+struct EditProfileSheet: View {
+    let user: User
+    @ObservedObject var appState: AppState
+    let onDismiss: () -> Void
+    @State private var name: String = ""
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppColors.background.ignoresSafeArea()
+                VStack(alignment: .leading, spacing: AppSpacing.xl) {
+                    Text("Name")
+                        .font(AppTypography.headline)
+                        .foregroundColor(AppColors.textPrimary)
+                    TextField("Your name", text: $name)
+                        .textContentType(.name)
+                        .font(AppTypography.body)
+                        .padding(.horizontal, AppSpacing.md)
+                        .padding(.vertical, AppSpacing.sm)
+                        .background(RoundedRectangle(cornerRadius: AppTheme.Corners.md).fill(AppColors.backgroundElevated))
+                        .overlay(RoundedRectangle(cornerRadius: AppTheme.Corners.md).strokeBorder(AppColors.border, lineWidth: 1))
+
+                    if let err = errorMessage {
+                        Text(err)
+                            .font(AppTypography.footnote)
+                            .foregroundColor(AppColors.danger)
+                    }
+
+                    Spacer()
+                }
+                .padding(.horizontal, AppSpacing.lg)
+                .padding(.top, AppSpacing.xl)
+            }
+            .navigationTitle("Edit profile")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { onDismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { save() }
+                        .disabled(isSaving || name.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+            .onAppear { name = user.name }
+        }
+    }
+
+    private func save() {
+        let newName = name.trimmingCharacters(in: .whitespaces)
+        guard !newName.isEmpty else { return }
+        errorMessage = nil
+        isSaving = true
+        Task { @MainActor in
+            do {
+                try await appState.userService.updateUser(id: user.id, name: newName)
+                await appState.refetchCurrentUser()
+                HapticManager.success()
+                onDismiss()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isSaving = false
+        }
+    }
+}
+
+// MARK: - Units Picker Sheet
+
+struct UnitsPickerSheet: View {
+    let onDismiss: () -> Void
+    @ObservedObject private var prefs = AppPreferences.shared
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppColors.background.ignoresSafeArea()
+                List(WeightUnit.allCases, id: \.self) { unit in
+                    Button {
+                        prefs.weightUnit = unit
+                        HapticManager.selection()
+                        onDismiss()
+                    } label: {
+                        HStack {
+                            Text(unit.displayName)
+                                .font(AppTypography.body)
+                            Spacer()
+                            if prefs.weightUnit == unit {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(AppColors.accent)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Units")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { onDismiss() }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Reminder Time Sheet
+
+struct ReminderTimeSheet: View {
+    let onDismiss: () -> Void
+    @ObservedObject private var prefs = AppPreferences.shared
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppColors.background.ignoresSafeArea()
+                VStack(spacing: AppSpacing.xl) {
+                    Text("Daily reminder for today’s workout")
+                        .font(AppTypography.footnote)
+                        .foregroundColor(AppColors.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                    Stepper(value: $prefs.reminderHour, in: 5...22) {
+                        Text("Hour: \(prefs.reminderHour):00")
+                            .font(AppTypography.headline)
+                    }
+                    .padding(.horizontal, AppSpacing.lg)
+                    Spacer()
+                }
+                .padding(.top, AppSpacing.xl)
+            }
+            .navigationTitle("Reminder time")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { onDismiss() }
+                }
+            }
+        }
     }
 }
 

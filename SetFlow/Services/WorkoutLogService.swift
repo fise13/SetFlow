@@ -35,24 +35,38 @@ final class WorkoutLogService {
             .order(by: "date", descending: true)
             .limit(to: limit)
             .getDocuments()
-        return snapshot.documents.compactMap { doc -> WorkoutLog? in
-            let data = doc.data()
-            guard let workoutTitle = data["workoutTitle"] as? String,
-                  let date = (data["date"] as? Timestamp)?.dateValue(),
-                  let durationMinutes = data["durationMinutes"] as? Int,
-                  let totalSets = data["totalSets"] as? Int,
-                  let totalVolume = data["totalVolume"] as? Double,
-                  let rating = data["rating"] as? Int else { return nil }
-            return WorkoutLog(
-                id: doc.documentID,
-                athleteId: athleteId,
-                workoutTitle: workoutTitle,
-                date: date,
-                durationMinutes: durationMinutes,
-                totalSets: totalSets,
-                totalVolume: totalVolume,
-                rating: rating
-            )
-        }
+        return snapshot.documents.compactMap { logFromDoc($0, athleteId: athleteId) }
+    }
+
+    func logsForAthleteListener(athleteId: String, limit: Int = 50, onUpdate: @escaping ([WorkoutLog]) -> Void) -> ListenerRegistration {
+        db.collection(logsCollection)
+            .whereField("athleteId", isEqualTo: athleteId)
+            .order(by: "date", descending: true)
+            .limit(to: limit)
+            .addSnapshotListener { [weak self] snapshot, error in
+                guard let self = self, let snapshot = snapshot, error == nil else { return }
+                let logs = snapshot.documents.compactMap { self.logFromDoc($0, athleteId: athleteId) }
+                DispatchQueue.main.async { onUpdate(logs) }
+            }
+    }
+
+    private func logFromDoc(_ doc: DocumentSnapshot, athleteId: String) -> WorkoutLog? {
+        let data = doc.data()
+        guard let workoutTitle = data?["workoutTitle"] as? String,
+              let date = (data?["date"] as? Timestamp)?.dateValue(),
+              let durationMinutes = data?["durationMinutes"] as? Int,
+              let totalSets = data?["totalSets"] as? Int,
+              let totalVolume = data?["totalVolume"] as? Double,
+              let rating = data?["rating"] as? Int else { return nil }
+        return WorkoutLog(
+            id: doc.documentID,
+            athleteId: athleteId,
+            workoutTitle: workoutTitle,
+            date: date,
+            durationMinutes: durationMinutes,
+            totalSets: totalSets,
+            totalVolume: totalVolume,
+            rating: rating
+        )
     }
 }

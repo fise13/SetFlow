@@ -39,12 +39,13 @@ struct WorkoutPlan: Identifiable, Hashable, Codable {
     var coachId: String
     var athlete: User?
     var days: [WorkoutDay]
+    var lastUpdatedAt: Date?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, description, athleteId, coachId, days
+        case id, name, description, athleteId, coachId, days, lastUpdatedAt
     }
 
-    init(id: String, name: String, description: String, athleteId: String, coachId: String, athlete: User?, days: [WorkoutDay]) {
+    init(id: String, name: String, description: String, athleteId: String, coachId: String, athlete: User?, days: [WorkoutDay], lastUpdatedAt: Date? = nil) {
         self.id = id
         self.name = name
         self.description = description
@@ -52,6 +53,7 @@ struct WorkoutPlan: Identifiable, Hashable, Codable {
         self.coachId = coachId
         self.athlete = athlete
         self.days = days
+        self.lastUpdatedAt = lastUpdatedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -62,6 +64,7 @@ struct WorkoutPlan: Identifiable, Hashable, Codable {
         athleteId = try c.decode(String.self, forKey: .athleteId)
         coachId = try c.decode(String.self, forKey: .coachId)
         days = try c.decode([WorkoutDay].self, forKey: .days)
+        lastUpdatedAt = try? c.decodeIfPresent(Date.self, forKey: .lastUpdatedAt)
         athlete = nil
     }
 
@@ -73,6 +76,7 @@ struct WorkoutPlan: Identifiable, Hashable, Codable {
         try c.encode(athleteId, forKey: .athleteId)
         try c.encode(coachId, forKey: .coachId)
         try c.encode(days, forKey: .days)
+        try? c.encodeIfPresent(lastUpdatedAt, forKey: .lastUpdatedAt)
     }
 }
 

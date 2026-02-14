@@ -42,7 +42,8 @@ final class WorkoutPlanService {
             }
             return WorkoutDay(id: dayId, title: title, focus: focus, date: date, exercises: exercises)
         }
-        return WorkoutPlan(id: id, name: name, description: description, athleteId: athleteId, coachId: coachId, athlete: nil, days: days)
+        let lastUpdatedAt = (data["lastUpdatedAt"] as? Timestamp)?.dateValue()
+        return WorkoutPlan(id: id, name: name, description: description, athleteId: athleteId, coachId: coachId, athlete: nil, days: days, lastUpdatedAt: lastUpdatedAt)
     }
 
     func createPlan(name: String, description: String, athleteId: String, coachId: String, days: [WorkoutDay]) async throws -> WorkoutPlan {
@@ -55,7 +56,14 @@ final class WorkoutPlanService {
 
     func updatePlan(_ plan: WorkoutPlan) async throws {
         let data = planDocumentData(id: plan.id, name: plan.name, description: plan.description, athleteId: plan.athleteId, coachId: plan.coachId, days: plan.days)
-        try await db.collection(plansCollection).document(plan.id).setData(data)
+        let updateData: [String: Any] = [
+            "name": data["name"]!,
+            "description": data["description"]!,
+            "athleteId": data["athleteId"]!,
+            "coachId": data["coachId"]!,
+            "days": data["days"]!
+        ]
+        try await db.collection(plansCollection).document(plan.id).updateData(updateData)
     }
 
     func deletePlan(id: String) async throws {
@@ -70,6 +78,17 @@ final class WorkoutPlanService {
         return snapshot.documents.compactMap { try? planFromDoc($0) }
     }
 
+    func plansForAthleteListener(athleteId: String, onUpdate: @escaping ([WorkoutPlan]) -> Void) -> ListenerRegistration {
+        db.collection(plansCollection)
+            .whereField("athleteId", isEqualTo: athleteId)
+            .order(by: "createdAt", descending: true)
+            .addSnapshotListener { [weak self] snapshot, error in
+                guard let self = self, let snapshot = snapshot, error == nil else { return }
+                let plans = snapshot.documents.compactMap { try? self.planFromDoc($0) }
+                DispatchQueue.main.async { onUpdate(plans) }
+            }
+    }
+
     func plansForCoach(coachId: String) async throws -> [WorkoutPlan] {
         let snapshot = try await db.collection(plansCollection)
             .whereField("coachId", isEqualTo: coachId)
@@ -78,13 +97,13 @@ final class WorkoutPlanService {
         var plans = snapshot.documents.compactMap { try? planFromDoc($0) }
         for i in plans.indices {
             if let athlete = try? await userService.getUser(id: plans[i].athleteId) {
-                plans[i] = WorkoutPlan(id: plans[i].id, name: plans[i].name, description: plans[i].description, athleteId: plans[i].athleteId, coachId: plans[i].coachId, athlete: athlete, days: plans[i].days)
+                plans[i] = WorkoutPlan(id: plans[i].id, name: plans[i].name, description: plans[i].description, athleteId: plans[i].athleteId, coachId: plans[i].coachId, athlete: athlete, days: plans[i].days, lastUpdatedAt: plans[i].lastUpdatedAt)
             }
         }
         return plans
     }
 
-    private func planDocumentData(id: String, name: String, description: String, athleteId: String, coachId: String, days: [WorkoutDay]) -> [String: Any] {
+    private func planDocumentData(id: String, name: String, description: String, athleteId: String, coachId: String, days: [WorkoutDay], lastUpdatedAt: Date? = nil) -> [String: Any] {
         let daysArray = days.map { day -> [String: Any] in
             let exercisesArray = day.exercises.map { ex -> [String: Any] in
                 [
@@ -106,7 +125,7 @@ final class WorkoutPlanService {
                 "exercises": exercisesArray
             ]
         }
-        return [
+        var result: [String: Any] = [
             "name": name,
             "description": description,
             "athleteId": athleteId,
@@ -114,5 +133,14 @@ final class WorkoutPlanService {
             "days": daysArray,
             "createdAt": FieldValue.serverTimestamp()
         ]
+        if let updated = lastUpdatedAt {
+            result["lastUpdatedAt"] = Timestamp(date: updated)
+        }
+        return result
+    }
+
+    func markPlanUpdated(_ plan: WorkoutPlan) async throws {
+        let now = Date()
+        try await db.collection(plansCollection).document(plan.id).updateData(["lastUpdatedAt": Timestamp(date: now)])
     }
 }

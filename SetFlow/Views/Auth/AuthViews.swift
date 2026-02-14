@@ -165,7 +165,7 @@ struct SignInView: View {
     @State private var emailError: String? = nil
     @State private var passwordError: String? = nil
     @State private var generalError: String? = nil
-    @State private var showSignUp: Bool = false
+    @State private var showForgotPasswordSheet: Bool = false
     @FocusState private var focusedField: Field?
     
     enum Field {
@@ -227,8 +227,8 @@ struct SignInView: View {
         }
         .navigationBarBackButtonHidden(true)
         .animation(.spring(response: 0.5, dampingFraction: 0.8), value: signInMethod)
-        .sheet(isPresented: $showSignUp) {
-            SignUpView(appState: appState)
+        .sheet(isPresented: $showForgotPasswordSheet) {
+            ForgotPasswordSheet(onDismiss: { showForgotPasswordSheet = false })
         }
     }
     
@@ -415,7 +415,7 @@ struct SignInView: View {
                         Spacer()
                         Button {
                             HapticManager.selection()
-                            // TODO: Implement forgot password flow
+                            showForgotPasswordSheet = true
                         } label: {
                             Text("Forgot password?")
                                 .font(AppTypography.footnote)
@@ -458,7 +458,7 @@ struct SignInView: View {
             
             Button {
                 HapticManager.selection()
-                showSignUp = true
+                appState.showSignUpSheet = true
             } label: {
                 Text("Sign up")
                     .font(AppTypography.footnote)
@@ -514,7 +514,7 @@ struct SignInView: View {
                 try await appState.authService.signIn(email: email, password: password)
                 HapticManager.success()
             } catch {
-                generalError = error.localizedDescription
+                generalError = AuthService.userFriendlyMessage(for: error)
             }
             isLoading = false
         }
@@ -527,11 +527,106 @@ struct SignInView: View {
     }
 }
 
+// MARK: - Forgot Password
+
+struct ForgotPasswordSheet: View {
+    let onDismiss: () -> Void
+    @EnvironmentObject private var appState: AppState
+    @State private var email: String = ""
+    @State private var isLoading = false
+    @State private var message: String?
+    @State private var isSuccess = false
+    @FocusState private var focusedField: ForgotPasswordField?
+
+    enum ForgotPasswordField: Hashable { case email }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppColors.background.ignoresSafeArea()
+                VStack(spacing: AppSpacing.xl) {
+                    Text("Enter the email address for your account. We’ll send you a link to reset your password.")
+                        .font(AppTypography.body)
+                        .foregroundColor(AppColors.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+
+                    FormTextField(
+                        title: "Email",
+                        text: $email,
+                        placeholder: "your@email.com",
+                        keyboardType: .emailAddress,
+                        errorMessage: nil,
+                        submitLabel: .go,
+                        focusValue: ForgotPasswordField.email,
+                        focusedField: $focusedField
+                    ) {
+                        sendResetLink()
+                    }
+                    .padding(.horizontal, AppSpacing.lg)
+
+                    if let msg = message {
+                        Text(msg)
+                            .font(AppTypography.footnote)
+                            .foregroundColor(isSuccess ? AppColors.success : AppColors.danger)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+
+                    PrimaryButton(title: isLoading ? "Sending…" : "Send reset link", fullWidth: true) {
+                        sendResetLink()
+                    }
+                    .disabled(isLoading || email.isEmpty || !isValidEmail(email))
+                    .padding(.horizontal, AppSpacing.lg)
+
+                    Spacer()
+                }
+                .padding(.top, AppSpacing.xl)
+            }
+            .navigationTitle("Forgot password")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        onDismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private func sendResetLink() {
+        guard isValidEmail(email) else {
+            message = "Please enter a valid email address."
+            isSuccess = false
+            return
+        }
+        message = nil
+        isLoading = true
+        Task { @MainActor in
+            do {
+                try await appState.authService.resetPassword(email: email)
+                isSuccess = true
+                message = "Check your email. We sent a link to reset your password to \(email)."
+                HapticManager.success()
+            } catch {
+                isSuccess = false
+                message = AuthService.userFriendlyMessage(for: error)
+            }
+            isLoading = false
+        }
+    }
+
+    private func isValidEmail(_ email: String) -> Bool {
+        let regex = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}"
+        return email.range(of: regex, options: .regularExpression) != nil
+    }
+}
+
 // MARK: - Sign Up
 
 struct SignUpView: View {
     @ObservedObject var appState: AppState
-    @Environment(\.dismiss) private var dismiss
     @State private var email: String = ""
     @State private var password: String = ""
     @State private var name: String = ""
@@ -592,7 +687,7 @@ struct SignUpView: View {
             }
             .navigationTitle("Sign up")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { appState.showSignUpSheet = false } } }
         }
     }
 
@@ -607,14 +702,17 @@ struct SignUpView: View {
             return
         }
         isLoading = true
-        Task {
+        let nameToUse = displayName
+        Task { @MainActor in
             do {
                 try await appState.authService.signUp(email: email, password: password)
-                dismiss()
+                appState.pendingDisplayName = nameToUse
+                await appState.refetchCurrentUser()
+                appState.showSignUpSheet = false
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = AuthService.userFriendlyMessage(for: error)
             }
-            await MainActor.run { isLoading = false }
+            isLoading = false
         }
     }
 
@@ -631,7 +729,7 @@ struct RoleSelectionView: View {
     @State private var isCreatingCoach = false
 
     private var displayName: String {
-        appState.authService.currentFirebaseUser?.email?.components(separatedBy: "@").first ?? "User"
+        appState.pendingDisplayName ?? appState.authService.currentFirebaseUser?.email?.components(separatedBy: "@").first ?? "User"
     }
 
     var body: some View {
@@ -691,12 +789,12 @@ struct RoleSelectionView: View {
     private func selectCoachRole() {
         guard let uid = appState.authService.uid else { return }
         isCreatingCoach = true
-        Task {
+        Task { @MainActor in
+            defer { isCreatingCoach = false }
             do {
                 try await appState.userService.createUser(id: uid, name: displayName, role: .coach)
                 await appState.refetchCurrentUser()
             } catch { }
-            await MainActor.run { isCreatingCoach = false }
         }
     }
 }
@@ -710,7 +808,15 @@ struct InviteCodeView: View {
     @State private var errorMessage: String?
 
     private var displayName: String {
-        appState.authService.currentFirebaseUser?.email?.components(separatedBy: "@").first ?? "Athlete"
+        appState.pendingDisplayName ?? appState.authService.currentFirebaseUser?.email?.components(separatedBy: "@").first ?? "Athlete"
+    }
+
+    /// Normalize to XXXX-XXXX (letters/numbers only, uppercase, max 8 chars).
+    private static func formatInviteCode(_ raw: String) -> String {
+        let s = String(raw.uppercased().filter { $0.isLetter || $0.isNumber }.prefix(8))
+        if s.count <= 4 { return s }
+        let idx = s.index(s.startIndex, offsetBy: 4)
+        return String(s[..<idx]) + "-" + String(s[idx...].prefix(4))
     }
 
     var body: some View {
@@ -719,7 +825,7 @@ struct InviteCodeView: View {
             VStack(spacing: AppSpacing.xl) {
                 SectionHeader(
                     title: "Connect with your coach",
-                    subtitle: "Enter the invite code (Coach ID) they sent you."
+                    subtitle: "Enter the invite code they sent you. Format: XXXX-XXXX."
                 )
                 .padding(.top, AppSpacing.xl)
 
@@ -728,11 +834,14 @@ struct InviteCodeView: View {
                         Text("Invite code")
                             .font(AppTypography.callout)
                             .foregroundColor(AppColors.textSecondary)
-                        TextField("Coach invite code", text: $inviteCode)
+                        TextField("e.g. A7K2-19QP", text: $inviteCode)
                             .keyboardType(.asciiCapable)
                             .textInputAutocapitalization(.characters)
                             .font(AppTypography.headline)
                             .padding(.vertical, AppSpacing.sm)
+                            .onChange(of: inviteCode) { _, newValue in
+                                inviteCode = Self.formatInviteCode(newValue)
+                            }
                             .overlay(
                                 Rectangle()
                                     .frame(height: 1)
@@ -747,6 +856,7 @@ struct InviteCodeView: View {
                     }
                 }
                 .padding(.horizontal, AppSpacing.lg)
+                .allowsHitTesting(!isLoading)
 
                 Button {
                     continueAsAthlete()
@@ -754,35 +864,48 @@ struct InviteCodeView: View {
                     LoadingButtonLabel(title: "Continue", icon: "arrow.right", isLoading: isLoading, fullWidth: true)
                 }
                 .buttonStyle(.plain)
-                .disabled(isLoading || inviteCode.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(isLoading || normalizedCode.isEmpty)
                 .padding(.horizontal, AppSpacing.lg)
 
                 Spacer()
             }
-            if isLoading {
-                ProgressView()
+            .overlay {
+                if isLoading {
+                    Color.black.opacity(0.3)
+                        .ignoresSafeArea()
+                    ProgressView()
+                        .scaleEffect(1.2)
+                        .tint(.white)
+                }
             }
         }
         .navigationTitle("Invite code")
         .navigationBarTitleDisplayMode(.inline)
     }
 
+    private var normalizedCode: String {
+        inviteCode.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "-", with: "")
+    }
+
     private func continueAsAthlete() {
-        let code = inviteCode.trimmingCharacters(in: .whitespaces)
-        guard !code.isEmpty, let uid = appState.authService.uid else {
+        guard !normalizedCode.isEmpty, let uid = appState.authService.uid else {
             errorMessage = "Enter the code from your coach"
             return
         }
         errorMessage = nil
         isLoading = true
-        Task {
+        Task { @MainActor in
+            defer { isLoading = false }
             do {
-                try await appState.userService.createUser(id: uid, name: displayName, role: .athlete, coachId: code)
+                guard let coachId = try await appState.inviteCodeService.redeemCode(normalizedCode) else {
+                    errorMessage = "Invalid or expired code. Ask your coach for a new one."
+                    return
+                }
+                try await appState.userService.createUser(id: uid, name: displayName, role: .athlete, coachId: coachId)
                 await appState.refetchCurrentUser()
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = AuthService.userFriendlyMessage(for: error)
             }
-            await MainActor.run { isLoading = false }
         }
     }
 }

@@ -439,7 +439,13 @@ struct ExerciseSetPill: View {
 
 struct ExerciseRow: View {
     let exercise: Exercise
-    
+    /// If set, used for weight pill (e.g. "120 kg" or "265 lb"). Defaults to "\(weight) kg".
+    var weightDisplay: String? = nil
+
+    private var weightText: String {
+        weightDisplay ?? "\(Int(exercise.weight)) kg"
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: AppSpacing.md) {
             ZStack {
@@ -458,7 +464,7 @@ struct ExerciseRow: View {
                 
                 HStack(spacing: 6) {
                     ExerciseSetPill("\(exercise.sets)x\(exercise.reps)", icon: "number")
-                    ExerciseSetPill("\(Int(exercise.weight)) kg", icon: "scalemass")
+                    ExerciseSetPill(weightText, icon: "scalemass")
                     ExerciseSetPill("\(exercise.restSeconds)s", icon: "timer")
                 }
             }

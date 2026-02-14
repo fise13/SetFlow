@@ -11,11 +11,14 @@ final class AppState: ObservableObject {
     @Published var selectedWorkoutPlan: WorkoutPlan?
     @Published var selectedWorkoutDay: WorkoutDay?
     @Published var activeWorkoutLog: WorkoutLog?
+    @Published var showSignUpSheet: Bool = false
+    var pendingDisplayName: String?
 
     let authService = AuthService.shared
     let userService = UserService()
     let planService = WorkoutPlanService()
     let logService = WorkoutLogService()
+    let inviteCodeService = InviteCodeService()
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -67,6 +70,7 @@ final class AppState: ObservableObject {
         try? authService.signOut()
         currentUser = nil
         needsProfileSetup = false
+        pendingDisplayName = nil
     }
 }
 
@@ -74,23 +78,43 @@ struct RootView: View {
     @EnvironmentObject private var appState: AppState
 
     var body: some View {
-        NavigationStack {
+        rootContent
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .fullScreenCover(isPresented: Binding(
+                get: { appState.showSignUpSheet },
+                set: { appState.showSignUpSheet = $0 }
+            )) {
+                SignUpView(appState: appState)
+            }
+    }
+
+    @ViewBuilder
+    private var rootContent: some View {
+        Group {
             if appState.isLoadingProfile {
                 loadingView
             } else if appState.needsProfileSetup {
-                RoleSelectionView(appState: appState)
+                NavigationStack {
+                    RoleSelectionView(appState: appState)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let user = appState.currentUser {
                 switch user.role {
                 case .athlete:
                     AthleteTabRootView(user: user, appState: appState)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .coach:
                     CoachTabRootView(coach: user, appState: appState)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             } else {
-                WelcomeView()
+                NavigationStack {
+                    WelcomeView()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .id(appState.currentUser?.id ?? (appState.needsProfileSetup ? "setup" : "guest"))
     }
 
     private var loadingView: some View {
@@ -104,6 +128,7 @@ struct RootView: View {
                     .foregroundColor(AppColors.textSecondary)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

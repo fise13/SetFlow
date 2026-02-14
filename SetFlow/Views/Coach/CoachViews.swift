@@ -62,7 +62,7 @@ struct CoachTabRootView: View {
         case .athletes:
             NavigationStack { CoachDashboardView(viewModel: dashboardVM) }
         case .programs:
-            NavigationStack { PlanBuilderView(appState: appState) }
+            NavigationStack { PlanProgramsEntryView(appState: appState) }
         case .updates:
             NavigationStack { CoachUpdatesView() }
         case .profile:
@@ -241,7 +241,8 @@ struct CoachDashboardView: View {
 struct AthleteProfileView: View {
     let athlete: User
     @EnvironmentObject private var appState: AppState
-    
+    @State private var plan: WorkoutPlan?
+
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
@@ -251,13 +252,13 @@ struct AthleteProfileView: View {
                             VStack(alignment: .leading, spacing: AppSpacing.sm) {
                                 Text(athlete.name)
                                     .font(AppTypography.title2)
-                                Text("Connected • 8-week strength block")
+                                Text(plan != nil ? "Connected • \(plan!.days.count) workout days" : "Connected")
                                     .font(AppTypography.body)
                                     .foregroundColor(AppColors.textSecondary)
                             }
                         }
                         .padding(.horizontal, AppSpacing.lg)
-                        
+
                         SectionHeader(title: "Progress", actionTitle: nil, action: nil)
                         CardView {
                             VStack(alignment: .leading, spacing: AppSpacing.md) {
@@ -273,17 +274,17 @@ struct AthleteProfileView: View {
                             }
                         }
                         .padding(.horizontal, AppSpacing.lg)
-                        
+
                         SectionHeader(title: "Plan", actionTitle: nil, action: nil)
                         NavigationLink {
-                            PlanBuilderView(appState: appState)
+                            PlanBuilderView(athlete: athlete, appState: appState)
                         } label: {
                             CardView {
                                 HStack {
                                     VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                                        Text("8-Week Strength Block")
+                                        Text(plan?.name ?? "Create plan")
                                             .font(AppTypography.headline)
-                                        Text("3 days / week • Last updated 3d ago")
+                                        Text(planSummaryText)
                                             .font(AppTypography.footnote)
                                             .foregroundColor(AppColors.textSecondary)
                                     }
@@ -305,67 +306,319 @@ struct AthleteProfileView: View {
             .navigationTitle("Athlete")
             .navigationBarTitleDisplayMode(.inline)
         }
+        .onAppear { loadPlan() }
+    }
+
+    private var planSummaryText: String {
+        guard let p = plan else { return "Tap to create or edit plan" }
+        let dayCount = p.days.count
+        let lastUpdated = p.lastUpdatedAt.map { relativeDate($0) } ?? "Not yet updated"
+        return "\(dayCount) days / week • Last updated \(lastUpdated)"
+    }
+
+    private func relativeDate(_ date: Date) -> String {
+        let days = Calendar.current.dateComponents([.day], from: date, to: Date()).day ?? 0
+        if days == 0 { return "today" }
+        if days == 1 { return "yesterday" }
+        if days < 7 { return "\(days)d ago" }
+        return "\(days / 7)w ago"
+    }
+
+    private func loadPlan() {
+        guard let coachId = appState.currentUser?.id else { return }
+        Task {
+            do {
+                let plans = try await appState.planService.plansForCoach(coachId: coachId)
+                await MainActor.run {
+                    plan = plans.first { $0.athleteId == athlete.id }
+                }
+            } catch {
+                await MainActor.run { plan = nil }
+            }
+        }
+    }
+}
+
+// MARK: - Plan Programs Entry (athlete picker for Programs tab)
+
+struct PlanProgramsEntryView: View {
+    @ObservedObject var appState: AppState
+    @State private var athletes: [User] = []
+    @State private var isLoading = true
+
+    var body: some View {
+        ZStack {
+            AppColors.background.ignoresSafeArea()
+            if isLoading {
+                ProgressView()
+            } else if athletes.isEmpty {
+                VStack(spacing: AppSpacing.lg) {
+                    Text("No athletes yet")
+                        .font(AppTypography.title2)
+                    Text("Generate an invite code from Profile and share it with athletes to connect.")
+                        .font(AppTypography.body)
+                        .foregroundColor(AppColors.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+            } else {
+                ScrollView {
+                    VStack(spacing: AppSpacing.sm) {
+                        ForEach(athletes) { athlete in
+                            NavigationLink {
+                                PlanBuilderView(athlete: athlete, appState: appState)
+                            } label: {
+                                GlassCard(cornerRadius: AppTheme.Corners.md) {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(athlete.name)
+                                                .font(AppTypography.headline)
+                                            Text("Tap to manage plan")
+                                                .font(AppTypography.footnote)
+                                                .foregroundColor(AppColors.textSecondary)
+                                        }
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .foregroundColor(AppColors.textSecondary)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, AppSpacing.lg)
+                    .padding(.vertical, AppSpacing.lg)
+                }
+            }
+        }
+        .navigationTitle("Programs")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear { load() }
+    }
+
+    private func load() {
+        guard let coach = appState.currentUser, coach.role == .coach else { return }
+        isLoading = true
+        Task {
+            do {
+                athletes = try await appState.userService.athletesForCoach(coachId: coach.id)
+            } catch {
+                athletes = []
+            }
+            await MainActor.run { isLoading = false }
+        }
     }
 }
 
 // MARK: - Plan Builder
 
 struct PlanBuilderView: View {
+    let athlete: User
     @ObservedObject var appState: AppState
-    let weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    @StateObject private var viewModel: PlanBuilderViewModel
+
+    init(athlete: User, appState: AppState) {
+        self.athlete = athlete
+        self.appState = appState
+        _viewModel = StateObject(wrappedValue: PlanBuilderViewModel(
+            athlete: athlete,
+            coachId: appState.currentUser?.id ?? "",
+            planService: appState.planService
+        ))
+    }
 
     var body: some View {
-        VStack(spacing: AppSpacing.lg) {
-            SectionHeader(
-                title: "Weekly schedule",
-                subtitle: "Drag to reorder training days",
-                actionTitle: nil,
-                action: nil
-            )
-            .frame(maxWidth: .infinity, alignment: .leading)
-            ScrollView {
-                VStack(spacing: AppSpacing.sm) {
-                    ForEach(weekDays, id: \.self) { day in
-                        GlassCard(cornerRadius: AppTheme.Corners.md) {
-                            HStack {
-                                Image(systemName: "line.3.horizontal.circle")
-                                    .foregroundColor(AppColors.textSecondary)
-                                Text(day)
-                                    .font(AppTypography.body)
-                                Spacer()
-                                Text("Lower Body Strength")
-                                    .font(AppTypography.footnote)
-                                    .foregroundColor(AppColors.textSecondary)
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(AppColors.textSecondary)
+        ZStack {
+            AppColors.background.ignoresSafeArea()
+            VStack(spacing: AppSpacing.lg) {
+                SectionHeader(
+                    title: "Weekly schedule",
+                    subtitle: viewModel.plan != nil ? "Tap a day to edit exercises" : "Create a plan to get started",
+                    actionTitle: viewModel.plan != nil ? "Add day" : "Create plan",
+                    action: viewModel.plan != nil ? { viewModel.addDay() } : { viewModel.createPlan() }
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if viewModel.isLoading {
+                    Spacer()
+                    ProgressView()
+                    Spacer()
+                } else if let plan = viewModel.plan {
+                    ScrollView {
+                        VStack(spacing: AppSpacing.sm) {
+                            ForEach(Array(plan.days.enumerated()), id: \.element.id) { index, day in
+                                NavigationLink {
+                                    WorkoutEditorView(
+                                        plan: plan,
+                                        dayIndex: index,
+                                        planService: appState.planService,
+                                        onSave: { updatedPlan in viewModel.updatePlan(updatedPlan) }
+                                    )
+                                } label: {
+                                    GlassCard(cornerRadius: AppTheme.Corners.md) {
+                                        HStack {
+                                            Image(systemName: "line.3.horizontal.circle")
+                                                .foregroundColor(AppColors.textSecondary)
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text(day.title)
+                                                    .font(AppTypography.body)
+                                                Text(dayDateString(day.date))
+                                                    .font(AppTypography.footnote)
+                                                    .foregroundColor(AppColors.textSecondary)
+                                            }
+                                            Spacer()
+                                            Text("\(day.exercises.count) exercises")
+                                                .font(AppTypography.footnote)
+                                                .foregroundColor(AppColors.textSecondary)
+                                            Image(systemName: "chevron.right")
+                                                .foregroundColor(AppColors.textSecondary)
+                                        }
+                                    }
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
+                        .padding(.horizontal, AppSpacing.lg)
+                        .padding(.bottom, AppSpacing.lg)
                     }
+                    .frame(maxWidth: .infinity)
+                } else {
+                    Spacer()
+                    Text("No plan yet")
+                        .font(AppTypography.body)
+                        .foregroundColor(AppColors.textSecondary)
+                    PrimaryButton(title: "Create plan") {
+                        viewModel.createPlan()
+                    }
+                    .padding(.horizontal, AppSpacing.lg)
+                    Spacer()
                 }
-                .padding(.horizontal, AppSpacing.lg)
-                .padding(.bottom, AppSpacing.lg)
             }
-            .frame(maxWidth: .infinity)
-            NavigationLink {
-                WorkoutEditorView()
-            } label: {
-                PrimaryActionButtonLabel(title: "Edit Monday workout", icon: "slider.horizontal.3")
-            }
-            .buttonStyle(.plain)
             .padding(.horizontal, AppSpacing.lg)
-            Spacer(minLength: 0)
+            .padding(.top, AppSpacing.sm)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(AppColors.background)
-        .navigationTitle("Plan builder")
+        .navigationTitle(planTitle)
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { viewModel.load() }
+    }
+
+    private var planTitle: String {
+        viewModel.plan?.name ?? "Plan for \(athlete.name)"
+    }
+
+    private func dayDateString(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "EEE, MMM d"
+        return f.string(from: date)
+    }
+}
+
+// MARK: - Plan Builder View Model
+
+final class PlanBuilderViewModel: ObservableObject {
+    let athlete: User
+    let coachId: String
+    private let planService: WorkoutPlanService
+
+    @Published var plan: WorkoutPlan?
+    @Published var isLoading = false
+
+    init(athlete: User, coachId: String, planService: WorkoutPlanService) {
+        self.athlete = athlete
+        self.coachId = coachId
+        self.planService = planService
+    }
+
+    @MainActor
+    func load() {
+        isLoading = true
+        Task {
+            do {
+                let plans = try await planService.plansForCoach(coachId: coachId)
+                plan = plans.first { $0.athleteId == athlete.id }
+            } catch {
+                plan = nil
+            }
+            isLoading = false
+        }
+    }
+
+    @MainActor
+    func createPlan() {
+        guard !coachId.isEmpty else { return }
+        isLoading = true
+        Task {
+            do {
+                let calendar = Calendar.current
+                let startOfToday = calendar.startOfDay(for: Date())
+                let defaultDay = WorkoutDay(
+                    id: UUID().uuidString,
+                    title: "Workout 1",
+                    focus: "Full body",
+                    date: startOfToday,
+                    exercises: []
+                )
+                let newPlan = try await planService.createPlan(
+                    name: "\(self.athlete.name)'s Plan",
+                    description: "",
+                    athleteId: self.athlete.id,
+                    coachId: self.coachId,
+                    days: [defaultDay]
+                )
+                plan = newPlan
+            } catch { }
+            isLoading = false
+        }
+    }
+
+    func addDay() {
+        guard var p = plan else { return }
+        let lastDate = p.days.last?.date ?? Date()
+        let nextDate = Calendar.current.date(byAdding: .day, value: 1, to: lastDate) ?? Date()
+        let newDay = WorkoutDay(
+            id: UUID().uuidString,
+            title: "Workout \(p.days.count + 1)",
+            focus: "",
+            date: nextDate,
+            exercises: []
+        )
+        p.days.append(newDay)
+        updatePlan(p)
+    }
+
+    func updatePlan(_ p: WorkoutPlan) {
+        plan = p
+        Task {
+            try? await planService.updatePlan(p)
+        }
     }
 }
 
 // MARK: - Workout Editor
 
 struct WorkoutEditorView: View {
-    @State private var exercises: [Exercise] = MockData.sampleExercises
+    let plan: WorkoutPlan
+    let dayIndex: Int
+    let planService: WorkoutPlanService
+    let onSave: (WorkoutPlan) -> Void
+
+    @State private var workoutDay: WorkoutDay
+
+    init(plan: WorkoutPlan, dayIndex: Int, planService: WorkoutPlanService, onSave: @escaping (WorkoutPlan) -> Void) {
+        self.plan = plan
+        self.dayIndex = dayIndex
+        self.planService = planService
+        self.onSave = onSave
+        _workoutDay = State(initialValue: plan.days[dayIndex])
+    }
+
+    private var updatedPlan: WorkoutPlan {
+        var p = plan
+        if dayIndex < p.days.count {
+            p.days[dayIndex] = workoutDay
+        }
+        return p
+    }
 
     var body: some View {
         ZStack {
@@ -373,20 +626,47 @@ struct WorkoutEditorView: View {
             VStack(spacing: AppSpacing.lg) {
                 SectionHeader(
                     title: "Workout day",
-                    subtitle: "Tap an exercise to edit"
+                    subtitle: "Tap an exercise to edit • Date sets when this workout is scheduled"
                 )
 
                 ScrollView {
-                    VStack(spacing: AppSpacing.sm) {
-                        ForEach(exercises) { exercise in
-                            NavigationLink {
-                                ExerciseEditorView(exercise: exercise)
-                            } label: {
-                                GlassCard(cornerRadius: AppTheme.Corners.md) {
-                                    ExerciseRow(exercise: exercise)
-                                }
+                    VStack(spacing: AppSpacing.lg) {
+                        GlassCard {
+                            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                                Text("Date")
+                                    .font(AppTypography.footnote)
+                                    .foregroundColor(AppColors.textSecondary)
+                                DatePicker("", selection: Binding(
+                                    get: { workoutDay.date },
+                                    set: {
+                                        workoutDay = WorkoutDay(id: workoutDay.id, title: workoutDay.title, focus: workoutDay.focus, date: $0, exercises: workoutDay.exercises)
+                                        onSave(updatedPlan)
+                                    }
+                                ), displayedComponents: .date)
+                                .labelsHidden()
                             }
-                            .buttonStyle(.plain)
+                        }
+
+                        SectionHeader(title: "Exercises", actionTitle: "Add", action: addExercise)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        VStack(spacing: AppSpacing.sm) {
+                            ForEach(Array(workoutDay.exercises.enumerated()), id: \.element.id) { index, exercise in
+                                NavigationLink {
+                                    ExerciseEditorView(
+                                        exercise: workoutDay.exercises[index],
+                                        onSave: { updated in
+                                            workoutDay.exercises[index] = updated
+                                            onSave(updatedPlan)
+                                        }
+                                    )
+                                } label: {
+                                    GlassCard(cornerRadius: AppTheme.Corners.md) {
+                                        ExerciseRow(exercise: exercise)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
                     }
                     .padding(.horizontal, AppSpacing.lg)
@@ -394,7 +674,7 @@ struct WorkoutEditorView: View {
                 }
 
                 NavigationLink {
-                    SendUpdateView()
+                    SendUpdateView(plan: updatedPlan, planService: planService)
                 } label: {
                     PrimaryActionButtonLabel(title: "Send update to athlete", icon: "paperplane.fill")
                 }
@@ -403,15 +683,36 @@ struct WorkoutEditorView: View {
                 .padding(.bottom, AppSpacing.lg)
             }
         }
-        .navigationTitle("Workout editor")
+        .navigationTitle(workoutDay.title)
         .navigationBarTitleDisplayMode(.inline)
+        .onDisappear { onSave(updatedPlan) }
+    }
+
+    private func addExercise() {
+        let newEx = Exercise(
+            id: UUID().uuidString,
+            name: "New exercise",
+            sets: 3,
+            reps: 10,
+            weight: 0,
+            restSeconds: 90,
+            notes: nil
+        )
+        workoutDay.exercises.append(newEx)
+        onSave(updatedPlan)
     }
 }
 
 // MARK: - Exercise Editor
 
 struct ExerciseEditorView: View {
-    @State var exercise: Exercise
+    let onSave: (Exercise) -> Void
+    @State private var exercise: Exercise
+
+    init(exercise: Exercise, onSave: @escaping (Exercise) -> Void) {
+        self.onSave = onSave
+        _exercise = State(initialValue: exercise)
+    }
 
     var body: some View {
         ZStack {
@@ -488,6 +789,7 @@ struct ExerciseEditorView: View {
         }
         .navigationTitle("Exercise")
         .navigationBarTitleDisplayMode(.inline)
+        .onDisappear { onSave(exercise) }
     }
 }
 
@@ -547,6 +849,8 @@ struct CustomStepper<Value: Strideable>: View where Value.Stride == Int {
 // MARK: - Send Update
 
 struct SendUpdateView: View {
+    let plan: WorkoutPlan
+    let planService: WorkoutPlanService
     @State private var isSending: Bool = false
     @State private var didSend: Bool = false
 
@@ -570,12 +874,7 @@ struct SendUpdateView: View {
                 Spacer()
                 PrimaryButton(title: didSend ? "Done" : "Send update") {
                     if !didSend {
-                        isSending = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                            HapticManager.success()
-                            isSending = false
-                            didSend = true
-                        }
+                        sendUpdate()
                     }
                 }
                 .padding(.horizontal, AppSpacing.lg)
@@ -587,6 +886,20 @@ struct SendUpdateView: View {
             }
         }
         .navigationBarBackButtonHidden(didSend)
+    }
+
+    private func sendUpdate() {
+        isSending = true
+        Task {
+            do {
+                try await planService.markPlanUpdated(plan)
+                await MainActor.run {
+                    HapticManager.success()
+                    didSend = true
+                }
+            } catch { }
+            await MainActor.run { isSending = false }
+        }
     }
 }
 
@@ -624,34 +937,71 @@ struct CoachUpdatesView: View {
 struct CoachProfileView: View {
     let coach: User
     @EnvironmentObject private var appState: AppState
+    @State private var showEditProfile = false
 
     var body: some View {
         ScrollView {
             VStack(spacing: AppSpacing.lg) {
-                GlassCard {
-                    HStack(spacing: AppSpacing.md) {
-                        ZStack {
-                            Circle()
-                                .fill(AppColors.accentSecondary.opacity(0.2))
-                            Text(String(coach.name.prefix(1)))
-                                .font(AppTypography.title1)
-                                .foregroundColor(AppColors.accentSecondary)
+                Button {
+                    showEditProfile = true
+                } label: {
+                    GlassCard {
+                        HStack(spacing: AppSpacing.md) {
+                            ZStack {
+                                Circle()
+                                    .fill(AppColors.accentSecondary.opacity(0.2))
+                                Text(String(coach.name.prefix(1)))
+                                    .font(AppTypography.title1)
+                                    .foregroundColor(AppColors.accentSecondary)
+                            }
+                            .frame(width: 56, height: 56)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(coach.name)
+                                    .font(AppTypography.title2)
+                                Text("Coach workspace • Tap to edit")
+                                    .font(AppTypography.footnote)
+                                    .foregroundColor(AppColors.textSecondary)
+                            }
+                            Spacer()
+                            Image(systemName: "pencil.circle")
+                                .font(.title2)
+                                .foregroundColor(AppColors.textMuted)
                         }
-                        .frame(width: 56, height: 56)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(coach.name)
-                                .font(AppTypography.title2)
-                            Text("Coach workspace")
-                                .font(AppTypography.footnote)
-                                .foregroundColor(AppColors.textSecondary)
-                        }
-                        Spacer()
                     }
+                    .frame(maxWidth: .infinity)
                 }
-                .frame(maxWidth: .infinity)
+                .buttonStyle(.plain)
                 SectionHeader(title: "Workspace", actionTitle: nil, action: nil)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 VStack(spacing: AppSpacing.md) {
+                    NavigationLink {
+                        CoachInviteCodeView(coach: coach, inviteCodeService: appState.inviteCodeService)
+                    } label: {
+                        HStack {
+                            Image(systemName: "person.badge.plus")
+                                .foregroundColor(AppColors.accent)
+                            Text("Generate invite code")
+                                .font(AppTypography.callout)
+                                .fontWeight(.medium)
+                                .foregroundColor(AppColors.textPrimary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundColor(AppColors.textSecondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, AppSpacing.md)
+                        .padding(.horizontal, AppSpacing.lg)
+                        .background(
+                            RoundedRectangle(cornerRadius: AppTheme.Corners.lg)
+                                .fill(Color.white.opacity(0.06))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: AppTheme.Corners.lg)
+                                        .strokeBorder(AppColors.border.opacity(0.4), lineWidth: 1)
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
                     SecondaryButton(title: "Billing & subscription") { }
                     SecondaryButton(title: "Export data") { }
                     SecondaryButton(title: "Sign out") {
@@ -667,6 +1017,168 @@ struct CoachProfileView: View {
         .background(AppColors.background)
         .navigationTitle("Profile")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showEditProfile) {
+            CoachEditProfileSheet(coach: coach, appState: appState, onDismiss: { showEditProfile = false })
+        }
+    }
+}
+
+// MARK: - Coach Edit Profile Sheet
+
+struct CoachEditProfileSheet: View {
+    let coach: User
+    @ObservedObject var appState: AppState
+    let onDismiss: () -> Void
+    @State private var name: String = ""
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppColors.background.ignoresSafeArea()
+                VStack(alignment: .leading, spacing: AppSpacing.xl) {
+                    Text("Name")
+                        .font(AppTypography.headline)
+                        .foregroundColor(AppColors.textPrimary)
+                    TextField("Your name", text: $name)
+                        .textContentType(.name)
+                        .font(AppTypography.body)
+                        .padding(.horizontal, AppSpacing.md)
+                        .padding(.vertical, AppSpacing.sm)
+                        .background(RoundedRectangle(cornerRadius: AppTheme.Corners.md).fill(AppColors.backgroundElevated))
+                        .overlay(RoundedRectangle(cornerRadius: AppTheme.Corners.md).strokeBorder(AppColors.border, lineWidth: 1))
+
+                    if let err = errorMessage {
+                        Text(err)
+                            .font(AppTypography.footnote)
+                            .foregroundColor(AppColors.danger)
+                    }
+
+                    Spacer()
+                }
+                .padding(.horizontal, AppSpacing.lg)
+                .padding(.top, AppSpacing.xl)
+            }
+            .navigationTitle("Edit profile")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { onDismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { save() }
+                        .disabled(isSaving || name.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+            .onAppear { name = coach.name }
+        }
+    }
+
+    private func save() {
+        let newName = name.trimmingCharacters(in: .whitespaces)
+        guard !newName.isEmpty else { return }
+        errorMessage = nil
+        isSaving = true
+        Task { @MainActor in
+            do {
+                try await appState.userService.updateUser(id: coach.id, name: newName)
+                await appState.refetchCurrentUser()
+                HapticManager.success()
+                onDismiss()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isSaving = false
+        }
+    }
+}
+
+// MARK: - Coach Invite Code Generator
+
+struct CoachInviteCodeView: View {
+    let coach: User
+    let inviteCodeService: InviteCodeService
+    @State private var generatedCode: String?
+    @State private var expiresAt: Date?
+    @State private var isGenerating = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        ZStack {
+            AppColors.background.ignoresSafeArea()
+            ScrollView {
+                VStack(spacing: AppSpacing.xl) {
+                    SectionHeader(
+                        title: "Invite athletes",
+                        subtitle: "Generate a code. Athletes enter it when signing up. Valid for 24 hours."
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if let code = generatedCode, let expires = expiresAt {
+                        GlassCard {
+                            VStack(spacing: AppSpacing.lg) {
+                                Text(code)
+                                    .font(.system(size: 28, weight: .bold, design: .monospaced))
+                                    .tracking(4)
+                                Text("Expires \(formattedExpiry(expires))")
+                                    .font(AppTypography.footnote)
+                                    .foregroundColor(AppColors.textSecondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, AppSpacing.lg)
+                        }
+                        .padding(.horizontal, AppSpacing.lg)
+                    }
+
+                    if let err = errorMessage {
+                        Text(err)
+                            .font(AppTypography.footnote)
+                            .foregroundColor(AppColors.danger)
+                            .padding(.horizontal)
+                    }
+
+                    PrimaryButton(title: generatedCode == nil ? "Generate code" : "Generate new code") {
+                        generateCode()
+                    }
+                    .padding(.horizontal, AppSpacing.lg)
+                }
+                .padding(.vertical, AppSpacing.xl)
+            }
+            if isGenerating {
+                ProgressView()
+            }
+        }
+        .navigationTitle("Invite code")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func generateCode() {
+        guard !isGenerating else { return }
+        isGenerating = true
+        errorMessage = nil
+        Task {
+            do {
+                let code = try await inviteCodeService.generateCode(coachId: coach.id)
+                let expires = Date().addingTimeInterval(24 * 3600)
+                await MainActor.run {
+                    generatedCode = code
+                    expiresAt = expires
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                }
+            }
+            await MainActor.run { isGenerating = false }
+        }
+    }
+
+    private func formattedExpiry(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 }
 
@@ -691,24 +1203,29 @@ struct CoachViews_Previews: PreviewProvider {
             }
             .preferredColorScheme(.dark)
 
-            NavigationStack {
-                PlanBuilderView(appState: AppState())
-            }
-            .preferredColorScheme(.light)
+                    NavigationStack {
+                        PlanBuilderView(athlete: MockData.sampleAthlete, appState: AppState())
+                    }
+                    .preferredColorScheme(.light)
 
             NavigationStack {
-                WorkoutEditorView()
+                WorkoutEditorView(
+                    plan: WorkoutPlan(id: "preview", name: "Preview", description: "", athleteId: MockData.sampleAthlete.id, coachId: MockData.sampleCoach.id, athlete: nil, days: [MockData.todayWorkoutDay]),
+                    dayIndex: 0,
+                    planService: WorkoutPlanService(),
+                    onSave: { _ in }
+                )
             }
             .preferredColorScheme(.dark)
 
-            NavigationStack {
-                ExerciseEditorView(exercise: MockData.sampleExercises.first!)
-            }
-            .preferredColorScheme(.light)
+                    NavigationStack {
+                        ExerciseEditorView(exercise: MockData.sampleExercises.first!, onSave: { _ in })
+                    }
+                    .preferredColorScheme(.light)
 
-            NavigationStack {
-                SendUpdateView()
-            }
+                    NavigationStack {
+                        SendUpdateView(plan: WorkoutPlan(id: "preview", name: "Preview", description: "", athleteId: "", coachId: "", athlete: nil, days: []), planService: WorkoutPlanService())
+                    }
             .preferredColorScheme(.dark)
 
             CoachTabRootView(
