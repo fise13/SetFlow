@@ -33,17 +33,17 @@ enum AthleteTab: String, CaseIterable {
 
 struct AthleteTabRootView: View {
     let user: User
-    let plans: [WorkoutPlan]
-    
+    @ObservedObject var appState: AppState
+
     @StateObject private var homeViewModel: AthleteHomeViewModel
     @State private var selectedTab: AthleteTab = .home
-    
-    init(user: User, plans: [WorkoutPlan]) {
+
+    init(user: User, appState: AppState) {
         self.user = user
-        self.plans = plans
-        _homeViewModel = StateObject(wrappedValue: AthleteHomeViewModel(user: user, plans: plans))
+        self.appState = appState
+        _homeViewModel = StateObject(wrappedValue: AthleteHomeViewModel(user: user, planService: appState.planService, logService: appState.logService))
     }
-    
+
     var body: some View {
         ZStack(alignment: .bottom) {
             TabView(selection: $selectedTab) {
@@ -51,10 +51,10 @@ struct AthleteTabRootView: View {
                     AthleteHomeView(viewModel: homeViewModel)
                 }
                 .tag(AthleteTab.home)
-                
+
                 NavigationStack {
                     if let today = homeViewModel.todayWorkout {
-                        WorkoutDetailView(workoutDay: today)
+                        WorkoutDetailView(workoutDay: today, athleteId: user.id)
                     } else {
                         Text("No workout scheduled for today.")
                             .font(AppTypography.body)
@@ -63,20 +63,25 @@ struct AthleteTabRootView: View {
                             .navigationTitle("Workout")
                     }
                 }
+                .environment(\.popToHome) { selectedTab = .home }
                 .tag(AthleteTab.workout)
-                
+
                 NavigationStack {
                     AthleteProgressView(logs: homeViewModel.history)
                 }
                 .tag(AthleteTab.progress)
-                
+
                 NavigationStack {
-                    AthleteProfileSettingsView(user: user)
+                    AthleteProfileSettingsView(user: user, appState: appState)
                 }
                 .tag(AthleteTab.profile)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
-            
+            .onAppear { homeViewModel.load() }
+            .onChange(of: selectedTab) { _, newTab in
+                if newTab == .home { homeViewModel.load() }
+            }
+
             AthleteTabBar(selectedTab: $selectedTab)
         }
         .ignoresSafeArea(edges: .bottom)
@@ -127,19 +132,37 @@ struct AthleteTabBar: View {
 
 final class AthleteHomeViewModel: ObservableObject {
     let user: User
-    @Published var plans: [WorkoutPlan]
+    private let planService: WorkoutPlanService
+    private let logService: WorkoutLogService
+
+    @Published var plans: [WorkoutPlan] = []
     @Published var upcomingWorkouts: [WorkoutDay] = []
-    @Published var history: [WorkoutLog] = MockData.sampleLogs
-    
-    init(user: User, plans: [WorkoutPlan]) {
+    @Published var history: [WorkoutLog] = []
+
+    init(user: User, planService: WorkoutPlanService, logService: WorkoutLogService) {
         self.user = user
-        self.plans = plans
-        self.upcomingWorkouts = plans.flatMap { $0.days }.sorted { $0.date < $1.date }
+        self.planService = planService
+        self.logService = logService
     }
-    
+
     var todayWorkout: WorkoutDay? {
         let today = Calendar.current.startOfDay(for: Date())
         return upcomingWorkouts.first { Calendar.current.isDate($0.date, inSameDayAs: today) }
+    }
+
+    @MainActor
+    func load() {
+        Task {
+            do {
+                plans = try await planService.plansForAthlete(athleteId: user.id)
+                upcomingWorkouts = plans.flatMap { $0.days }.sorted { $0.date < $1.date }
+                history = try await logService.logsForAthlete(athleteId: user.id)
+            } catch {
+                plans = []
+                upcomingWorkouts = []
+                history = []
+            }
+        }
     }
 }
 
@@ -204,7 +227,7 @@ struct AthleteHomeView: View {
         Group {
             if let today = viewModel.todayWorkout {
                 NavigationLink {
-                    WorkoutDetailView(workoutDay: today)
+                    WorkoutDetailView(workoutDay: today, athleteId: viewModel.user.id)
                 } label: {
                     WorkoutHeroCard(
                         title: today.title,
@@ -302,7 +325,8 @@ struct AthleteHomeView: View {
 
 struct WorkoutDetailView: View {
     let workoutDay: WorkoutDay
-    
+    var athleteId: String
+
     var body: some View {
         ZStack {
             AppColors.background.ignoresSafeArea()
@@ -320,9 +344,9 @@ struct WorkoutDetailView: View {
                     }
                 }
                 .padding(.horizontal, AppSpacing.lg)
-                
+
                 SectionHeader(title: "Exercises", actionTitle: nil, action: nil)
-                
+
                 ScrollView {
                     VStack(spacing: 0) {
                         ForEach(workoutDay.exercises) { exercise in
@@ -332,9 +356,9 @@ struct WorkoutDetailView: View {
                     }
                     .padding(.horizontal, AppSpacing.lg)
                 }
-                
+
                 NavigationLink {
-                    LiveWorkoutView(workoutDay: workoutDay)
+                    LiveWorkoutView(workoutDay: workoutDay, athleteId: athleteId)
                 } label: {
                     PrimaryButtonLabel(title: "Start workout")
                 }
@@ -377,11 +401,13 @@ final class LiveWorkoutViewModel: ObservableObject {
 struct LiveWorkoutView: View {
     @ObservedObject var viewModel: LiveWorkoutViewModel
     @State private var animateRing: Bool = false
-    
-    init(workoutDay: WorkoutDay) {
+    let athleteId: String
+
+    init(workoutDay: WorkoutDay, athleteId: String) {
         self.viewModel = LiveWorkoutViewModel(workoutDay: workoutDay)
+        self.athleteId = athleteId
     }
-    
+
     var body: some View {
         ZStack {
             AppColors.background.ignoresSafeArea()
@@ -450,7 +476,8 @@ struct LiveWorkoutView: View {
                 NavigationLink {
                     WorkoutSummaryView(
                         log: WorkoutLog(
-                            id: UUID(),
+                            id: "temp-\(UUID().uuidString)",
+                            athleteId: athleteId,
                             workoutTitle: viewModel.workoutDay.title,
                             date: Date(),
                             durationMinutes: 52,
@@ -477,25 +504,28 @@ struct LiveWorkoutView: View {
 
 struct WorkoutSummaryView: View {
     let log: WorkoutLog
-    
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.popToHome) private var popToHome
+    @Environment(\.dismiss) private var dismiss
+
     var body: some View {
         ZStack {
             AppColors.background.ignoresSafeArea()
             VStack(spacing: AppSpacing.xl) {
                 Spacer(minLength: AppSpacing.xl)
-                
+
                 Image(systemName: "checkmark.seal.fill")
                     .font(.system(size: 60))
                     .foregroundColor(AppColors.accent)
                     .padding(.bottom, AppSpacing.md)
-                
+
                 Text("Workout complete")
                     .font(AppTypography.title2)
-                
+
                 Text(log.workoutTitle)
                     .font(AppTypography.body)
                     .foregroundColor(AppColors.textSecondary)
-                
+
                 CardView {
                     VStack(alignment: .leading, spacing: AppSpacing.md) {
                         summaryRow(label: "Duration", value: "\(log.durationMinutes) min")
@@ -505,11 +535,15 @@ struct WorkoutSummaryView: View {
                     }
                 }
                 .padding(.horizontal, AppSpacing.lg)
-                
+
                 Spacer()
-                
+
                 PrimaryButton(title: "Back to home") {
                     HapticManager.success()
+                    Task {
+                        try? await appState.logService.saveLog(log)
+                        popToHome?()
+                    }
                 }
                 .padding(.horizontal, AppSpacing.lg)
                 .padding(.bottom, AppSpacing.lg)
@@ -678,7 +712,8 @@ struct AthleteProgressView: View {
 
 struct AthleteProfileSettingsView: View {
     let user: User
-    
+    @ObservedObject var appState: AppState
+
     var body: some View {
         ZStack {
             AppColors.background.ignoresSafeArea()
@@ -694,7 +729,7 @@ struct AthleteProfileSettingsView: View {
                                     .foregroundColor(AppColors.accent)
                             }
                             .frame(width: 56, height: 56)
-                            
+
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(user.name)
                                     .font(AppTypography.title2)
@@ -706,9 +741,9 @@ struct AthleteProfileSettingsView: View {
                         }
                     }
                     .padding(.horizontal, AppSpacing.lg)
-                    
+
                     SectionHeader(title: "Preferences", actionTitle: nil, action: nil)
-                    
+
                     VStack(spacing: AppSpacing.md) {
                         GlassCard(cornerRadius: AppTheme.Corners.md) {
                             HStack {
@@ -722,7 +757,7 @@ struct AthleteProfileSettingsView: View {
                                     .foregroundColor(AppColors.textSecondary)
                             }
                         }
-                        
+
                         GlassCard(cornerRadius: AppTheme.Corners.md) {
                             HStack {
                                 Text("Notifications")
@@ -737,15 +772,17 @@ struct AthleteProfileSettingsView: View {
                         }
                     }
                     .padding(.horizontal, AppSpacing.lg)
-                    
+
                     SectionHeader(title: "Account", actionTitle: nil, action: nil)
-                    
+
                     VStack(spacing: AppSpacing.md) {
                         SecondaryButton(title: "Manage subscription") { }
-                        SecondaryButton(title: "Sign out") { }
+                        SecondaryButton(title: "Sign out") {
+                            appState.signOut()
+                        }
                     }
                     .padding(.horizontal, AppSpacing.lg)
-                    
+
                     Spacer(minLength: AppSpacing.xxxl)
                 }
                 .padding(.vertical, AppSpacing.lg)
@@ -765,24 +802,26 @@ struct AthleteViews_Previews: PreviewProvider {
                 AthleteHomeView(
                     viewModel: AthleteHomeViewModel(
                         user: MockData.sampleAthlete,
-                        plans: MockData.samplePlans
+                        planService: AppState().planService,
+                        logService: AppState().logService
                     )
                 )
             }
             .preferredColorScheme(.light)
             
             NavigationStack {
-                WorkoutDetailView(workoutDay: MockData.todayWorkoutDay)
+                WorkoutDetailView(workoutDay: MockData.todayWorkoutDay, athleteId: MockData.sampleAthlete.id)
             }
             .preferredColorScheme(.dark)
-            
+
             NavigationStack {
-                LiveWorkoutView(workoutDay: MockData.todayWorkoutDay)
+                LiveWorkoutView(workoutDay: MockData.todayWorkoutDay, athleteId: MockData.sampleAthlete.id)
             }
             .preferredColorScheme(.light)
-            
+
             NavigationStack {
                 WorkoutSummaryView(log: MockData.sampleLogs.first!)
+                    .environmentObject(AppState())
             }
             .preferredColorScheme(.dark)
             
@@ -793,7 +832,7 @@ struct AthleteViews_Previews: PreviewProvider {
             
             AthleteTabRootView(
                 user: MockData.sampleAthlete,
-                plans: MockData.samplePlans
+                appState: AppState()
             )
             .preferredColorScheme(.dark)
         }

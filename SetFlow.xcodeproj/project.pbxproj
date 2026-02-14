@@ -12,6 +12,9 @@
 		574029932F40CF1200E518DC /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 574029922F40CF1200E518DC /* FirebaseAnalytics */; };
 		574029952F40CF1200E518DC /* FirebaseAnalyticsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 574029942F40CF1200E518DC /* FirebaseAnalyticsCore */; };
 		574029972F40CF1200E518DC /* FirebaseAnalyticsIdentitySupport in Frameworks */ = {isa = PBXBuildFile; productRef = 574029962F40CF1200E518DC /* FirebaseAnalyticsIdentitySupport */; };
+		574029992F40CF1200E518DC /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 574029982F40CF1200E518DC /* FirebaseCore */; };
+		5740299B2F40CF1200E518DC /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 5740299A2F40CF1200E518DC /* FirebaseAuth */; };
+		5740299D2F40CF1200E518DC /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 5740299C2F40CF1200E518DC /* FirebaseFirestore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,8 +37,11 @@
 				574029912F40CF1200E518DC /* FirebaseAILogic in Frameworks */,
 				574029972F40CF1200E518DC /* FirebaseAnalyticsIdentitySupport in Frameworks */,
 				5740298F2F40CF1200E518DC /* FirebaseAI in Frameworks */,
+				574029992F40CF1200E518DC /* FirebaseCore in Frameworks */,
 				574029932F40CF1200E518DC /* FirebaseAnalytics in Frameworks */,
 				574029952F40CF1200E518DC /* FirebaseAnalyticsCore in Frameworks */,
+				5740299B2F40CF1200E518DC /* FirebaseAuth in Frameworks */,
+				5740299D2F40CF1200E518DC /* FirebaseFirestore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -83,6 +89,9 @@
 				574029922F40CF1200E518DC /* FirebaseAnalytics */,
 				574029942F40CF1200E518DC /* FirebaseAnalyticsCore */,
 				574029962F40CF1200E518DC /* FirebaseAnalyticsIdentitySupport */,
+				574029982F40CF1200E518DC /* FirebaseCore */,
+				5740299A2F40CF1200E518DC /* FirebaseAuth */,
+				5740299C2F40CF1200E518DC /* FirebaseFirestore */,
 			);
 			productName = SetFlow;
 			productReference = 570F22F22F39D1F50015D482 /* SetFlow.app */;
@@ -390,6 +399,21 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 5740298D2F40CF1200E518DC /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseAnalyticsIdentitySupport;
+		};
+		574029982F40CF1200E518DC /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5740298D2F40CF1200E518DC /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		5740299A2F40CF1200E518DC /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5740298D2F40CF1200E518DC /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		5740299C2F40CF1200E518DC /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5740298D2F40CF1200E518DC /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

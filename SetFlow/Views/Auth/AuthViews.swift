@@ -1,4 +1,5 @@
 import SwiftUI
+import FirebaseAuth
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -156,14 +157,15 @@ enum SignInMethod {
 }
 
 struct SignInView: View {
+    @EnvironmentObject private var appState: AppState
     @State private var signInMethod: SignInMethod? = nil
     @State private var email: String = ""
     @State private var password: String = ""
     @State private var isLoading: Bool = false
     @State private var emailError: String? = nil
     @State private var passwordError: String? = nil
+    @State private var generalError: String? = nil
     @State private var showSignUp: Bool = false
-    @State private var navigateToRoleSelection: Bool = false
     @FocusState private var focusedField: Field?
     
     enum Field {
@@ -204,11 +206,6 @@ struct SignInView: View {
                                 .transition(.move(edge: .top).combined(with: .opacity))
                         }
                         
-                        // Continue without account
-                        continueWithoutAccountSection
-                            .padding(.top, AppSpacing.md)
-                            .padding(.bottom, AppSpacing.lg)
-                        
                         // Sign Up Option
                         signUpSection
                             .padding(.bottom, AppSpacing.lg)
@@ -230,15 +227,9 @@ struct SignInView: View {
         }
         .navigationBarBackButtonHidden(true)
         .animation(.spring(response: 0.5, dampingFraction: 0.8), value: signInMethod)
-        .background(
-            NavigationLink(
-                destination: RoleSelectionView(),
-                isActive: $navigateToRoleSelection
-            ) {
-                EmptyView()
-            }
-            .hidden()
-        )
+        .sheet(isPresented: $showSignUp) {
+            SignUpView(appState: appState)
+        }
     }
     
     // MARK: - Background
@@ -434,6 +425,11 @@ struct SignInView: View {
                         .buttonStyle(.plain)
                     }
                     
+                    if let err = generalError {
+                        Text(err)
+                            .font(AppTypography.caption)
+                            .foregroundColor(AppColors.danger)
+                    }
                     // Sign in button
                     Button {
                         handleEmailSignIn()
@@ -452,20 +448,6 @@ struct SignInView: View {
         }
     }
     
-    // MARK: - Continue Without Account Section
-    
-    private var continueWithoutAccountSection: some View {
-        NavigationLink {
-            RoleSelectionView()
-        } label: {
-            Text("Continue without account")
-                .font(AppTypography.footnote)
-                .foregroundColor(Color.white.opacity(0.75))
-                .underline()
-        }
-        .buttonStyle(.plain)
-    }
-    
     // MARK: - Sign Up Section
     
     private var signUpSection: some View {
@@ -477,7 +459,6 @@ struct SignInView: View {
             Button {
                 HapticManager.selection()
                 showSignUp = true
-                // TODO: Navigate to sign up flow
             } label: {
                 Text("Sign up")
                     .font(AppTypography.footnote)
@@ -502,50 +483,40 @@ struct SignInView: View {
     // MARK: - Actions
     
     private func handleAppleSignIn() {
-        isLoading = true
+        generalError = "Sign in with Apple is not configured yet. Please use Email to sign in."
         HapticManager.impact()
-        
-        // Simulate API call
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            isLoading = false
-            HapticManager.success()
-            navigateToRoleSelection = true
-        }
     }
-    
+
     private func handleEmailSignIn() {
-        // Validate email
         emailError = nil
         passwordError = nil
-        
+        generalError = nil
         if email.isEmpty {
             emailError = "Email is required"
             return
         }
-        
         if !isValidEmail(email) {
             emailError = "Please enter a valid email"
             return
         }
-        
         if password.isEmpty {
             passwordError = "Password is required"
             return
         }
-        
         if password.count < 6 {
             passwordError = "Password must be at least 6 characters"
             return
         }
-        
         isLoading = true
         HapticManager.impact()
-        
-        // Simulate API call
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+        Task { @MainActor in
+            do {
+                try await appState.authService.signIn(email: email, password: password)
+                HapticManager.success()
+            } catch {
+                generalError = error.localizedDescription
+            }
             isLoading = false
-            HapticManager.success()
-            navigateToRoleSelection = true
         }
     }
     
@@ -556,22 +527,126 @@ struct SignInView: View {
     }
 }
 
+// MARK: - Sign Up
+
+struct SignUpView: View {
+    @ObservedObject var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    @State private var email: String = ""
+    @State private var password: String = ""
+    @State private var name: String = ""
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    @FocusState private var focusedField: SignUpField?
+
+    enum SignUpField: Hashable { case email, password, name }
+
+    private var displayName: String {
+        !name.isEmpty ? name : (email.components(separatedBy: "@").first ?? "User")
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppColors.background.ignoresSafeArea()
+                ScrollView {
+                    VStack(spacing: AppSpacing.lg) {
+                        GlassCard {
+                            VStack(spacing: AppSpacing.lg) {
+                                FormTextField(
+                                    title: "Name",
+                                    text: $name,
+                                    placeholder: "Your name",
+                                    focusValue: SignUpField.name,
+                                    focusedField: $focusedField
+                                ) { focusedField = .email }
+                                FormTextField(
+                                    title: "Email",
+                                    text: $email,
+                                    placeholder: "your@email.com",
+                                    keyboardType: .emailAddress,
+                                    focusValue: SignUpField.email,
+                                    focusedField: $focusedField
+                                ) { focusedField = .password }
+                                FormTextField(
+                                    title: "Password",
+                                    text: $password,
+                                    placeholder: "Min 6 characters",
+                                    isSecure: true,
+                                    focusValue: SignUpField.password,
+                                    focusedField: $focusedField
+                                ) { }
+                                if let err = errorMessage {
+                                    Text(err)
+                                        .font(AppTypography.caption)
+                                        .foregroundColor(AppColors.danger)
+                                }
+                                PrimaryActionButton(title: "Create account", icon: "person.badge.plus", action: createAccount)
+                                    .disabled(isLoading || email.isEmpty || password.count < 6)
+                            }
+                        }
+                        .padding(.horizontal, AppSpacing.lg)
+                    }
+                    .padding(.vertical, AppSpacing.xl)
+                }
+            }
+            .navigationTitle("Sign up")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+        }
+    }
+
+    private func createAccount() {
+        errorMessage = nil
+        guard isValidEmail(email) else {
+            errorMessage = "Please enter a valid email"
+            return
+        }
+        guard password.count >= 6 else {
+            errorMessage = "Password must be at least 6 characters"
+            return
+        }
+        isLoading = true
+        Task {
+            do {
+                try await appState.authService.signUp(email: email, password: password)
+                dismiss()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            await MainActor.run { isLoading = false }
+        }
+    }
+
+    private func isValidEmail(_ email: String) -> Bool {
+        let regex = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}"
+        return (email.range(of: regex, options: .regularExpression) != nil)
+    }
+}
+
 // MARK: - Role Selection
 
 struct RoleSelectionView: View {
+    @ObservedObject var appState: AppState
+    @State private var isCreatingCoach = false
+
+    private var displayName: String {
+        appState.authService.currentFirebaseUser?.email?.components(separatedBy: "@").first ?? "User"
+    }
+
     var body: some View {
         ZStack {
             AppColors.background.ignoresSafeArea()
             VStack(spacing: AppSpacing.xl) {
                 SectionHeader(
-                    title: "Choose your space",
-                    subtitle: "You can always switch later in settings."
+                    title: "Choose your role",
+                    subtitle: "Are you training athletes or following a coach’s plan?"
                 )
                 .padding(.top, AppSpacing.lg)
-                
+
                 VStack(spacing: AppSpacing.lg) {
                     NavigationLink {
-                        InviteCodeView()
+                        InviteCodeView(appState: appState)
                     } label: {
                         GlassCard {
                             VStack(alignment: .leading, spacing: AppSpacing.sm) {
@@ -584,12 +659,9 @@ struct RoleSelectionView: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    
-                    NavigationLink {
-                        CoachTabRootView(
-                            coach: MockData.sampleCoach,
-                            athletes: MockData.sampleAthletes
-                        )
+
+                    Button {
+                        selectCoachRole()
                     } label: {
                         GlassCard {
                             VStack(alignment: .leading, spacing: AppSpacing.sm) {
@@ -602,38 +674,61 @@ struct RoleSelectionView: View {
                         }
                     }
                     .buttonStyle(.plain)
+                    .disabled(isCreatingCoach)
                 }
                 .padding(.horizontal, AppSpacing.lg)
-                
+
                 Spacer()
+            }
+            if isCreatingCoach {
+                ProgressView()
             }
         }
         .navigationTitle("Role")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func selectCoachRole() {
+        guard let uid = appState.authService.uid else { return }
+        isCreatingCoach = true
+        Task {
+            do {
+                try await appState.userService.createUser(id: uid, name: displayName, role: .coach)
+                await appState.refetchCurrentUser()
+            } catch { }
+            await MainActor.run { isCreatingCoach = false }
+        }
     }
 }
 
 // MARK: - Invite Code
 
 struct InviteCodeView: View {
+    @ObservedObject var appState: AppState
     @State private var inviteCode: String = ""
-    
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+
+    private var displayName: String {
+        appState.authService.currentFirebaseUser?.email?.components(separatedBy: "@").first ?? "Athlete"
+    }
+
     var body: some View {
         ZStack {
             AppColors.background.ignoresSafeArea()
             VStack(spacing: AppSpacing.xl) {
                 SectionHeader(
                     title: "Connect with your coach",
-                    subtitle: "Enter the invite code they sent you."
+                    subtitle: "Enter the invite code (Coach ID) they sent you."
                 )
                 .padding(.top, AppSpacing.xl)
-                
+
                 GlassCard {
                     VStack(alignment: .leading, spacing: AppSpacing.md) {
                         Text("Invite code")
                             .font(AppTypography.callout)
                             .foregroundColor(AppColors.textSecondary)
-                        TextField("XXXX-XXXX", text: $inviteCode)
+                        TextField("Coach invite code", text: $inviteCode)
                             .keyboardType(.asciiCapable)
                             .textInputAutocapitalization(.characters)
                             .font(AppTypography.headline)
@@ -644,29 +739,51 @@ struct InviteCodeView: View {
                                     .foregroundColor(AppColors.border.opacity(0.5)),
                                 alignment: .bottom
                             )
-                        Text("Mock validation only – code is not checked yet.")
-                            .font(AppTypography.footnote)
-                            .foregroundColor(AppColors.textSecondary)
+                        if let err = errorMessage {
+                            Text(err)
+                                .font(AppTypography.footnote)
+                                .foregroundColor(AppColors.danger)
+                        }
                     }
                 }
                 .padding(.horizontal, AppSpacing.lg)
-                
-                NavigationLink {
-                    AthleteTabRootView(
-                        user: MockData.sampleAthlete,
-                        plans: MockData.samplePlans
-                    )
+
+                Button {
+                    continueAsAthlete()
                 } label: {
-                    PrimaryActionButtonLabel(title: "Continue", icon: "arrow.right")
+                    LoadingButtonLabel(title: "Continue", icon: "arrow.right", isLoading: isLoading, fullWidth: true)
                 }
                 .buttonStyle(.plain)
+                .disabled(isLoading || inviteCode.trimmingCharacters(in: .whitespaces).isEmpty)
                 .padding(.horizontal, AppSpacing.lg)
-                
+
                 Spacer()
+            }
+            if isLoading {
+                ProgressView()
             }
         }
         .navigationTitle("Invite code")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func continueAsAthlete() {
+        let code = inviteCode.trimmingCharacters(in: .whitespaces)
+        guard !code.isEmpty, let uid = appState.authService.uid else {
+            errorMessage = "Enter the code from your coach"
+            return
+        }
+        errorMessage = nil
+        isLoading = true
+        Task {
+            do {
+                try await appState.userService.createUser(id: uid, name: displayName, role: .athlete, coachId: code)
+                await appState.refetchCurrentUser()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            await MainActor.run { isLoading = false }
+        }
     }
 }
 
@@ -682,16 +799,17 @@ struct AuthViews_Previews: PreviewProvider {
             
             NavigationStack {
                 SignInView()
+                    .environmentObject(AppState())
             }
             .preferredColorScheme(.dark)
-            
+
             NavigationStack {
-                RoleSelectionView()
+                RoleSelectionView(appState: AppState())
             }
             .preferredColorScheme(.light)
-            
+
             NavigationStack {
-                InviteCodeView()
+                InviteCodeView(appState: AppState())
             }
             .preferredColorScheme(.dark)
         }

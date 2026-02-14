@@ -7,30 +7,29 @@ enum AppTheme {
     // MARK: Colors
     
     enum Colors {
-        // Surfaces
-        static let background = Color("Background", bundle: .main).resolveFallback(.init(.systemBackground))
-        static let backgroundElevated = Color("BackgroundElevated", bundle: .main).resolveFallback(.init(.secondarySystemBackground))
-        static let card = Color("Card", bundle: .main).resolveFallback(.init(.secondarySystemBackground))
+        // Surfaces (system colors to avoid missing asset catalog warnings)
+        static let background = Color(.systemBackground)
+        static let backgroundElevated = Color(.secondarySystemBackground)
+        static let card = Color(.secondarySystemBackground)
         
         // Accents
-        static let accent = Color("Accent", bundle: .main).resolveFallback(.init(.systemTeal))
-        static let accentSecondary = Color("AccentSecondary", bundle: .main).resolveFallback(.init(.systemPurple))
-        static let accentSoft = Color("AccentSoft", bundle: .main).resolveFallback(.init(.systemGreen))
+        static let accent = Color(red: 0.11, green: 0.82, blue: 0.82)
+        static let accentSecondary = Color(.systemPurple)
+        static let accentSoft = Color(.systemGreen)
         
         // Text
-        static let textPrimary = Color("TextPrimary", bundle: .main).resolveFallback(.primary)
-        // Use system colors directly to avoid runtime warnings when asset entries are missing.
+        static let textPrimary = Color.primary
         static let textSecondary: Color = .secondary
         static let textMuted: Color = .secondary
         
         // States
-        static let border = Color("Border", bundle: .main).resolveFallback(.init(.separator))
-        static let danger = Color("Danger", bundle: .main).resolveFallback(.init(.systemRed))
-        static let success = Color("Success", bundle: .main).resolveFallback(.init(.systemGreen))
-        static let warning = Color("Warning", bundle: .main).resolveFallback(.init(.systemOrange))
+        static let border = Color(.separator)
+        static let danger = Color(.systemRed)
+        static let success = Color(.systemGreen)
+        static let warning = Color(.systemOrange)
         
         // Utility
-        static let progressBackground = Color("ProgressBackground", bundle: .main).resolveFallback(.init(.systemGray5))
+        static let progressBackground = Color(.systemGray5)
     }
     
     // MARK: Typography
@@ -144,20 +143,6 @@ enum AppTheme {
 typealias AppColors = AppTheme.Colors
 typealias AppTypography = AppTheme.Typography
 typealias AppSpacing = AppTheme.Spacing
-
-// MARK: - Helpers
-
-private extension Color {
-    /// Fallback to system color if asset is missing
-    func resolveFallback(_ fallback: Color) -> Color {
-        #if os(iOS)
-        // In practice this just returns self; fallback is here for non-asset builds.
-        return self
-        #else
-        return fallback
-        #endif
-    }
-}
 
 extension View {
     func appShadow(_ style: AppTheme.ShadowStyle = .subtle) -> some View {
