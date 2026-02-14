@@ -24,24 +24,24 @@ struct WelcomeView: View {
             VStack {
                 TabView(selection: $currentPage) {
                     OnboardingSlide(
-                        title: "Train with intention",
-                        subtitle: "Personalized strength blocks, designed by your coach and delivered to your wrist.",
+                        title: String(localized: "onboarding_title_train"),
+                        subtitle: String(localized: "onboarding_subtitle_train"),
                         icon: "figure.strengthtraining.traditional",
                         accentGradient: AppTheme.Gradients.primary
                     )
                     .tag(0)
                     
                     OnboardingSlide(
-                        title: "Focus on the next set",
-                        subtitle: "Clear live workout mode with timers, progress rings and subtle haptics.",
+                        title: String(localized: "onboarding_title_focus"),
+                        subtitle: String(localized: "onboarding_subtitle_focus"),
                         icon: "timer",
                         accentGradient: AppTheme.Gradients.warm
                     )
                     .tag(1)
                     
                     OnboardingSlide(
-                        title: "Coaches in sync",
-                        subtitle: "Coaches edit plans, send updates and track athlete progress in real time.",
+                        title: String(localized: "onboarding_title_coaches"),
+                        subtitle: String(localized: "onboarding_subtitle_coaches"),
                         icon: "person.3.sequence.fill",
                         accentGradient: AppTheme.Gradients.primary
                     )
@@ -69,7 +69,7 @@ struct WelcomeView: View {
             }
             
             if currentPage < 2 {
-                PrimaryActionButton(title: "Continue") {
+                PrimaryActionButton(title: String(localized: "button_continue")) {
                     withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) {
                         currentPage = min(currentPage + 1, 2)
                     }
@@ -78,7 +78,7 @@ struct WelcomeView: View {
                 NavigationLink {
                     SignInView()
                 } label: {
-                    PrimaryActionButtonLabel(title: "Get started", icon: "arrow.right")
+                    PrimaryActionButtonLabel(title: String(localized: "button_get_started"), icon: "arrow.right")
                 }
                 .buttonStyle(.plain)
             }
@@ -88,7 +88,7 @@ struct WelcomeView: View {
                     currentPage = 2
                 }
             } label: {
-                Text(currentPage == 2 ? " " : "Skip to sign in")
+                Text(currentPage == 2 ? " " : String(localized: "skip_to_sign_in"))
                     .font(AppTypography.footnote)
                     .foregroundColor(Color.white.opacity(0.7))
                     .padding(.top, 2)
@@ -125,7 +125,7 @@ struct OnboardingSlide: View {
                                 .fill(Color.white.opacity(0.15))
                         )
                     
-                    Text("SETFLOW")
+                    Text("brand_name")
                         .font(AppTypography.monoCaption)
                         .foregroundColor(Color.white.opacity(0.8))
                     
@@ -284,7 +284,7 @@ struct SignInView: View {
                     .foregroundColor(.white)
             }
             
-            Text("SETFLOW")
+            Text("brand_name")
                 .font(AppTypography.monoCaption)
                 .foregroundColor(Color.white.opacity(0.8))
                 .tracking(2)
@@ -295,12 +295,12 @@ struct SignInView: View {
     
     private var headerSection: some View {
         VStack(spacing: AppSpacing.sm) {
-            Text("Welcome back")
+            Text("signin_welcome_back")
                 .font(AppTypography.largeTitle)
                 .foregroundColor(.white)
                 .multilineTextAlignment(.center)
             
-            Text("Sign in to continue your training journey")
+            Text("signin_subtitle")
                 .font(AppTypography.body)
                 .foregroundColor(Color.white.opacity(0.85))
                 .multilineTextAlignment(.center)
@@ -321,7 +321,7 @@ struct SignInView: View {
                 HStack(spacing: AppSpacing.md) {
                     Image(systemName: "apple.logo")
                         .font(.system(size: 18, weight: .semibold))
-                    Text("Continue with Apple")
+                    Text("signin_continue_apple")
                         .font(AppTypography.callout)
                         .fontWeight(.semibold)
                 }
@@ -356,7 +356,7 @@ struct SignInView: View {
                 HStack(spacing: AppSpacing.md) {
                     Image(systemName: "envelope.fill")
                         .font(.system(size: 16, weight: .medium))
-                    Text("Continue with Email")
+                    Text("signin_continue_email")
                         .font(AppTypography.callout)
                         .fontWeight(.medium)
                 }
@@ -385,9 +385,9 @@ struct SignInView: View {
             GlassCard {
                 VStack(spacing: AppSpacing.lg) {
                     FormTextField(
-                        title: "Email",
+                        title: String(localized: "form_email"),
                         text: $email,
-                        placeholder: "your@email.com",
+                        placeholder: String(localized: "placeholder_email"),
                         keyboardType: .emailAddress,
                         errorMessage: emailError,
                         submitLabel: .next,
@@ -398,9 +398,9 @@ struct SignInView: View {
                     }
                     
                     FormTextField(
-                        title: "Password",
+                        title: String(localized: "form_password"),
                         text: $password,
-                        placeholder: "Enter your password",
+                        placeholder: String(localized: "placeholder_password"),
                         isSecure: true,
                         errorMessage: passwordError,
                         submitLabel: .go,
@@ -417,7 +417,7 @@ struct SignInView: View {
                             HapticManager.selection()
                             showForgotPasswordSheet = true
                         } label: {
-                            Text("Forgot password?")
+                            Text("forgot_password")
                                 .font(AppTypography.footnote)
                                 .foregroundColor(Color.white.opacity(0.8))
                                 .underline()
@@ -435,7 +435,7 @@ struct SignInView: View {
                         handleEmailSignIn()
                     } label: {
                         LoadingButtonLabel(
-                            title: "Sign In",
+                            title: String(localized: "button_sign_in"),
                             icon: "arrow.right",
                             isLoading: isLoading,
                             fullWidth: true
@@ -452,7 +452,7 @@ struct SignInView: View {
     
     private var signUpSection: some View {
         HStack(spacing: AppSpacing.xs) {
-            Text("Don't have an account?")
+            Text("no_account")
                 .font(AppTypography.footnote)
                 .foregroundColor(Color.white.opacity(0.7))
             
@@ -460,7 +460,7 @@ struct SignInView: View {
                 HapticManager.selection()
                 appState.showSignUpSheet = true
             } label: {
-                Text("Sign up")
+                Text("button_sign_up")
                     .font(AppTypography.footnote)
                     .fontWeight(.semibold)
                     .foregroundColor(.white)
@@ -473,7 +473,7 @@ struct SignInView: View {
     // MARK: - Terms Section
     
     private var termsSection: some View {
-        Text("By continuing, you agree to SetFlow's Terms of Service and Privacy Policy.")
+        Text("terms_agreement")
             .font(AppTypography.caption)
             .foregroundColor(Color.white.opacity(0.6))
             .multilineTextAlignment(.center)
@@ -483,7 +483,7 @@ struct SignInView: View {
     // MARK: - Actions
     
     private func handleAppleSignIn() {
-        generalError = "Sign in with Apple is not configured yet. Please use Email to sign in."
+        generalError = String(localized: "error_apple_not_configured")
         HapticManager.impact()
     }
 
@@ -492,19 +492,19 @@ struct SignInView: View {
         passwordError = nil
         generalError = nil
         if email.isEmpty {
-            emailError = "Email is required"
+            emailError = String(localized: "error_email_required")
             return
         }
         if !isValidEmail(email) {
-            emailError = "Please enter a valid email"
+            emailError = String(localized: "error_email_invalid")
             return
         }
         if password.isEmpty {
-            passwordError = "Password is required"
+            passwordError = String(localized: "error_password_required")
             return
         }
         if password.count < 6 {
-            passwordError = "Password must be at least 6 characters"
+            passwordError = String(localized: "error_password_min_length")
             return
         }
         isLoading = true
@@ -545,16 +545,16 @@ struct ForgotPasswordSheet: View {
             ZStack {
                 AppColors.background.ignoresSafeArea()
                 VStack(spacing: AppSpacing.xl) {
-                    Text("Enter the email address for your account. We’ll send you a link to reset your password.")
+                    Text("forgot_password_message")
                         .font(AppTypography.body)
                         .foregroundColor(AppColors.textSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
 
                     FormTextField(
-                        title: "Email",
+                        title: String(localized: "form_email"),
                         text: $email,
-                        placeholder: "your@email.com",
+                        placeholder: String(localized: "placeholder_email"),
                         keyboardType: .emailAddress,
                         errorMessage: nil,
                         submitLabel: .go,
@@ -573,7 +573,7 @@ struct ForgotPasswordSheet: View {
                             .padding(.horizontal)
                     }
 
-                    PrimaryButton(title: isLoading ? "Sending…" : "Send reset link", fullWidth: true) {
+                    PrimaryButton(title: isLoading ? String(localized: "sending") : String(localized: "button_send_reset_link"), fullWidth: true) {
                         sendResetLink()
                     }
                     .disabled(isLoading || email.isEmpty || !isValidEmail(email))
@@ -583,11 +583,11 @@ struct ForgotPasswordSheet: View {
                 }
                 .padding(.top, AppSpacing.xl)
             }
-            .navigationTitle("Forgot password")
+            .navigationTitle("forgot_password_title")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button(String(localized: "button_cancel")) {
                         onDismiss()
                     }
                 }
@@ -597,7 +597,7 @@ struct ForgotPasswordSheet: View {
 
     private func sendResetLink() {
         guard isValidEmail(email) else {
-            message = "Please enter a valid email address."
+            message = String(localized: "error_valid_email")
             isSuccess = false
             return
         }
@@ -607,7 +607,7 @@ struct ForgotPasswordSheet: View {
             do {
                 try await appState.authService.resetPassword(email: email)
                 isSuccess = true
-                message = "Check your email. We sent a link to reset your password to \(email)."
+                message = String(format: String(localized: "reset_password_sent"), email)
                 HapticManager.success()
             } catch {
                 isSuccess = false
@@ -649,16 +649,16 @@ struct SignUpView: View {
                         GlassCard {
                             VStack(spacing: AppSpacing.lg) {
                                 FormTextField(
-                                    title: "Name",
+                                    title: String(localized: "form_name"),
                                     text: $name,
-                                    placeholder: "Your name",
+                                    placeholder: String(localized: "placeholder_name"),
                                     focusValue: SignUpField.name,
                                     focusedField: $focusedField
                                 ) { focusedField = .email }
                                 FormTextField(
-                                    title: "Email",
+                                    title: String(localized: "form_email"),
                                     text: $email,
-                                    placeholder: "your@email.com",
+                                    placeholder: String(localized: "placeholder_email"),
                                     keyboardType: .emailAddress,
                                     focusValue: SignUpField.email,
                                     focusedField: $focusedField
@@ -666,7 +666,7 @@ struct SignUpView: View {
                                 FormTextField(
                                     title: "Password",
                                     text: $password,
-                                    placeholder: "Min 6 characters",
+                                    placeholder: String(localized: "placeholder_password_min"),
                                     isSecure: true,
                                     focusValue: SignUpField.password,
                                     focusedField: $focusedField
@@ -676,7 +676,7 @@ struct SignUpView: View {
                                         .font(AppTypography.caption)
                                         .foregroundColor(AppColors.danger)
                                 }
-                                PrimaryActionButton(title: "Create account", icon: "person.badge.plus", action: createAccount)
+                                PrimaryActionButton(title: String(localized: "button_create_account"), icon: "person.badge.plus", action: createAccount)
                                     .disabled(isLoading || email.isEmpty || password.count < 6)
                             }
                         }
@@ -685,20 +685,20 @@ struct SignUpView: View {
                     .padding(.vertical, AppSpacing.xl)
                 }
             }
-            .navigationTitle("Sign up")
+            .navigationTitle("signup_title")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { appState.showSignUpSheet = false } } }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button(String(localized: "button_cancel")) { appState.showSignUpSheet = false } } }
         }
     }
 
     private func createAccount() {
         errorMessage = nil
         guard isValidEmail(email) else {
-            errorMessage = "Please enter a valid email"
+            errorMessage = String(localized: "error_valid_email_signup")
             return
         }
         guard password.count >= 6 else {
-            errorMessage = "Password must be at least 6 characters"
+            errorMessage = String(localized: "error_password_min_signup")
             return
         }
         isLoading = true
@@ -748,9 +748,9 @@ struct RoleSelectionView: View {
                     } label: {
                         GlassCard {
                             VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                                Text("I'm an athlete")
+                                Text("role_athlete")
                                     .font(AppTypography.title2)
-                                Text("Follow precise programming from your coach, track every set and see your progress.")
+                                Text("role_athlete_desc")
                                     .font(AppTypography.body)
                                     .foregroundColor(AppColors.textSecondary)
                             }
@@ -763,9 +763,9 @@ struct RoleSelectionView: View {
                     } label: {
                         GlassCard {
                             VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                                Text("I'm a coach")
+                                Text("role_coach")
                                     .font(AppTypography.title2)
-                                Text("Design blocks, adjust plans on the fly and keep every athlete on track.")
+                                Text("role_coach_desc")
                                     .font(AppTypography.body)
                                     .foregroundColor(AppColors.textSecondary)
                             }
@@ -782,7 +782,7 @@ struct RoleSelectionView: View {
                 ProgressView()
             }
         }
-        .navigationTitle("Role")
+        .navigationTitle("nav_role")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -824,17 +824,17 @@ struct InviteCodeView: View {
             AppColors.background.ignoresSafeArea()
             VStack(spacing: AppSpacing.xl) {
                 SectionHeader(
-                    title: "Connect with your coach",
-                    subtitle: "Enter the invite code they sent you. Format: XXXX-XXXX."
+                    title: String(localized: "invite_title"),
+                    subtitle: String(localized: "invite_subtitle")
                 )
                 .padding(.top, AppSpacing.xl)
 
                 GlassCard {
                     VStack(alignment: .leading, spacing: AppSpacing.md) {
-                        Text("Invite code")
+                        Text("invite_code_label")
                             .font(AppTypography.callout)
                             .foregroundColor(AppColors.textSecondary)
-                        TextField("e.g. A7K2-19QP", text: $inviteCode)
+                        TextField(String(localized: "placeholder_invite_code"), text: $inviteCode)
                             .keyboardType(.asciiCapable)
                             .textInputAutocapitalization(.characters)
                             .font(AppTypography.headline)
@@ -861,7 +861,7 @@ struct InviteCodeView: View {
                 Button {
                     continueAsAthlete()
                 } label: {
-                    LoadingButtonLabel(title: "Continue", icon: "arrow.right", isLoading: isLoading, fullWidth: true)
+                    LoadingButtonLabel(title: String(localized: "button_continue_label"), icon: "arrow.right", isLoading: isLoading, fullWidth: true)
                 }
                 .buttonStyle(.plain)
                 .disabled(isLoading || normalizedCode.isEmpty)
@@ -879,7 +879,7 @@ struct InviteCodeView: View {
                 }
             }
         }
-        .navigationTitle("Invite code")
+        .navigationTitle("nav_invite_code")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -889,7 +889,7 @@ struct InviteCodeView: View {
 
     private func continueAsAthlete() {
         guard !normalizedCode.isEmpty, let uid = appState.authService.uid else {
-            errorMessage = "Enter the code from your coach"
+            errorMessage = String(localized: "error_invite_required")
             return
         }
         errorMessage = nil
@@ -898,7 +898,7 @@ struct InviteCodeView: View {
             defer { isLoading = false }
             do {
                 guard let coachId = try await appState.inviteCodeService.redeemCode(normalizedCode) else {
-                    errorMessage = "Invalid or expired code. Ask your coach for a new one."
+                    errorMessage = String(localized: "error_invite_invalid")
                     return
                 }
                 try await appState.userService.createUser(id: uid, name: displayName, role: .athlete, coachId: coachId)

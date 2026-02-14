@@ -13,8 +13,8 @@ enum WeightUnit: String, CaseIterable, Codable {
 
     var displayName: String {
         switch self {
-        case .kg: return "Kilograms"
-        case .lb: return "Pounds"
+        case .kg: return String(localized: "unit_kilograms")
+        case .lb: return String(localized: "unit_pounds")
         }
     }
 

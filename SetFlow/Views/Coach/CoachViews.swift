@@ -11,10 +11,10 @@ enum CoachTab: String, CaseIterable {
     
     var title: String {
         switch self {
-        case .athletes: return "Athletes"
-        case .programs: return "Programs"
-        case .updates: return "Updates"
-        case .profile: return "Profile"
+        case .athletes: return String(localized: "tab_athletes")
+        case .programs: return String(localized: "tab_programs")
+        case .updates: return String(localized: "tab_updates")
+        case .profile: return String(localized: "tab_profile")
         }
     }
     
@@ -146,8 +146,8 @@ struct CoachDashboardView: View {
         VStack(spacing: 0) {
             VStack(spacing: AppSpacing.lg) {
                 SectionHeader(
-                    title: "Athletes",
-                    subtitle: "Manage everyone in one place",
+                    title: String(localized: "section_athletes"),
+                    subtitle: String(localized: "athletes_subtitle"),
                     actionTitle: "Add"
                 ) { }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -164,7 +164,7 @@ struct CoachDashboardView: View {
                 .frame(maxWidth: .infinity)
 
                 HStack {
-                    Text("Active")
+                    Text("filter_active")
                         .font(AppTypography.footnote)
                         .foregroundColor(filterActiveOnly ? AppColors.textPrimary : AppColors.textSecondary)
                     Toggle("", isOn: $filterActiveOnly)
@@ -189,7 +189,7 @@ struct CoachDashboardView: View {
                                                 .font(AppTypography.headline)
                                             statusBadge
                                         }
-                                        Text("Last workout: 2d ago • Volume: 14,200 kg")
+                                        Text(String(localized: "last_workout_volume_format"))
                                             .font(AppTypography.footnote)
                                             .foregroundColor(AppColors.textSecondary)
                                     }
@@ -209,7 +209,7 @@ struct CoachDashboardView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppColors.background)
-        .navigationTitle("Dashboard")
+        .navigationTitle("nav_dashboard")
         .navigationBarTitleDisplayMode(.inline)
     }
     
@@ -220,7 +220,7 @@ struct CoachDashboardView: View {
     }
     
     private var statusBadge: some View {
-        Text("ACTIVE")
+        Text("active_badge")
             .font(AppTypography.monoCaption)
             .foregroundColor(.white)
             .padding(.vertical, 3)
@@ -259,12 +259,12 @@ struct AthleteProfileView: View {
                         }
                         .padding(.horizontal, AppSpacing.lg)
 
-                        SectionHeader(title: "Progress", actionTitle: nil, action: nil)
+                        SectionHeader(title: String(localized: "section_progress_coach"), actionTitle: nil, action: nil)
                         CardView {
                             VStack(alignment: .leading, spacing: AppSpacing.md) {
-                                Text("Summary")
+                                Text("summary_label")
                                     .font(AppTypography.headline)
-                                Text("Placeholder charts and stats. Replace with real data later.")
+                                Text("placeholder_charts")
                                     .font(AppTypography.footnote)
                                     .foregroundColor(AppColors.textSecondary)
                                 Rectangle()
@@ -275,7 +275,7 @@ struct AthleteProfileView: View {
                         }
                         .padding(.horizontal, AppSpacing.lg)
 
-                        SectionHeader(title: "Plan", actionTitle: nil, action: nil)
+                        SectionHeader(title: String(localized: "section_plan"), actionTitle: nil, action: nil)
                         NavigationLink {
                             PlanBuilderView(athlete: athlete, appState: appState)
                         } label: {
@@ -303,7 +303,7 @@ struct AthleteProfileView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(AppColors.background)
-            .navigationTitle("Athlete")
+            .navigationTitle("nav_athlete")
             .navigationBarTitleDisplayMode(.inline)
         }
         .onAppear { loadPlan() }
@@ -353,9 +353,9 @@ struct PlanProgramsEntryView: View {
                 ProgressView()
             } else if athletes.isEmpty {
                 VStack(spacing: AppSpacing.lg) {
-                    Text("No athletes yet")
+                    Text("no_athletes_yet")
                         .font(AppTypography.title2)
-                    Text("Generate an invite code from Profile and share it with athletes to connect.")
+                    Text("no_athletes_desc")
                         .font(AppTypography.body)
                         .foregroundColor(AppColors.textSecondary)
                         .multilineTextAlignment(.center)
@@ -373,7 +373,7 @@ struct PlanProgramsEntryView: View {
                                         VStack(alignment: .leading, spacing: 4) {
                                             Text(athlete.name)
                                                 .font(AppTypography.headline)
-                                            Text("Tap to manage plan")
+                                            Text("tap_to_manage_plan")
                                                 .font(AppTypography.footnote)
                                                 .foregroundColor(AppColors.textSecondary)
                                         }
@@ -391,7 +391,7 @@ struct PlanProgramsEntryView: View {
                 }
             }
         }
-        .navigationTitle("Programs")
+        .navigationTitle("nav_programs")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { load() }
     }
@@ -432,7 +432,7 @@ struct PlanBuilderView: View {
             AppColors.background.ignoresSafeArea()
             VStack(spacing: AppSpacing.lg) {
                 SectionHeader(
-                    title: "Weekly schedule",
+                    title: String(localized: "section_weekly_schedule"),
                     subtitle: viewModel.plan != nil ? "Tap a day to edit exercises" : "Create a plan to get started",
                     actionTitle: viewModel.plan != nil ? "Add day" : "Create plan",
                     action: viewModel.plan != nil ? { viewModel.addDay() } : { viewModel.createPlan() }
@@ -467,7 +467,7 @@ struct PlanBuilderView: View {
                                                     .foregroundColor(AppColors.textSecondary)
                                             }
                                             Spacer()
-                                            Text("\(day.exercises.count) exercises")
+                                            Text(String(format: String(localized: "exercises_count_format"), day.exercises.count))
                                                 .font(AppTypography.footnote)
                                                 .foregroundColor(AppColors.textSecondary)
                                             Image(systemName: "chevron.right")
@@ -484,10 +484,10 @@ struct PlanBuilderView: View {
                     .frame(maxWidth: .infinity)
                 } else {
                     Spacer()
-                    Text("No plan yet")
+                    Text("no_plan_yet")
                         .font(AppTypography.body)
                         .foregroundColor(AppColors.textSecondary)
-                    PrimaryButton(title: "Create plan") {
+                    PrimaryButton(title: String(localized: "button_create_plan")) {
                         viewModel.createPlan()
                     }
                     .padding(.horizontal, AppSpacing.lg)
@@ -625,15 +625,15 @@ struct WorkoutEditorView: View {
             AppColors.background.ignoresSafeArea()
             VStack(spacing: AppSpacing.lg) {
                 SectionHeader(
-                    title: "Workout day",
-                    subtitle: "Tap an exercise to edit • Date sets when this workout is scheduled"
+                    title: String(localized: "workout_day_title"),
+                    subtitle: String(localized: "workout_day_subtitle")
                 )
 
                 ScrollView {
                     VStack(spacing: AppSpacing.lg) {
                         GlassCard {
                             VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                                Text("Date")
+                                Text("date_label")
                                     .font(AppTypography.footnote)
                                     .foregroundColor(AppColors.textSecondary)
                                 DatePicker("", selection: Binding(
@@ -647,7 +647,7 @@ struct WorkoutEditorView: View {
                             }
                         }
 
-                        SectionHeader(title: "Exercises", actionTitle: "Add", action: addExercise)
+                        SectionHeader(title: String(localized: "section_exercises"), actionTitle: String(localized: "button_add"), action: addExercise)
                             .frame(maxWidth: .infinity, alignment: .leading)
 
                         VStack(spacing: AppSpacing.sm) {
@@ -676,7 +676,7 @@ struct WorkoutEditorView: View {
                 NavigationLink {
                     SendUpdateView(plan: updatedPlan, planService: planService)
                 } label: {
-                    PrimaryActionButtonLabel(title: "Send update to athlete", icon: "paperplane.fill")
+                    PrimaryActionButtonLabel(title: String(localized: "button_send_update"), icon: "paperplane.fill")
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, AppSpacing.lg)
@@ -719,14 +719,14 @@ struct ExerciseEditorView: View {
             AppColors.background.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: AppSpacing.lg) {
-                    SectionHeader(title: "Exercise", subtitle: "Fine-tune sets, reps and load")
+                    SectionHeader(title: String(localized: "exercise_section_title"), subtitle: String(localized: "exercise_section_subtitle"))
 
                     GlassCard {
                         VStack(alignment: .leading, spacing: AppSpacing.md) {
-                            Text("Name")
+                            Text("edit_profile_name_label")
                                 .font(AppTypography.footnote)
                                 .foregroundColor(AppColors.textSecondary)
-                            TextField("Bench Press", text: $exercise.name)
+                            TextField(String(localized: "placeholder_exercise_name"), text: $exercise.name)
                                 .font(AppTypography.body)
                                 .padding(.vertical, AppSpacing.sm)
                                 .overlay(
@@ -740,40 +740,40 @@ struct ExerciseEditorView: View {
 
                     GlassCard {
                         VStack(alignment: .leading, spacing: AppSpacing.md) {
-                            Text("Sets & reps")
+                            Text("form_sets_reps")
                                 .font(AppTypography.footnote)
                                 .foregroundColor(AppColors.textSecondary)
 
                             HStack(spacing: AppSpacing.lg) {
-                                CustomStepper(label: "Sets", value: $exercise.sets, range: 1...10)
-                                CustomStepper(label: "Reps", value: $exercise.reps, range: 1...20)
+                                CustomStepper(label: String(localized: "stepper_sets"), value: $exercise.sets, range: 1...10)
+                                CustomStepper(label: String(localized: "stepper_reps"), value: $exercise.reps, range: 1...20)
                             }
                         }
                     }
 
                     GlassCard {
                         VStack(alignment: .leading, spacing: AppSpacing.md) {
-                            Text("Load & rest")
+                            Text("form_load_rest")
                                 .font(AppTypography.footnote)
                                 .foregroundColor(AppColors.textSecondary)
 
                             HStack(spacing: AppSpacing.lg) {
-                                CustomStepper(label: "Weight (kg)", value: Binding(
+                                CustomStepper(label: String(localized: "stepper_weight_kg"), value: Binding(
                                     get: { Int(exercise.weight) },
                                     set: { exercise.weight = Double($0) }
                                 ), range: 0...300, step: 2)
 
-                                CustomStepper(label: "Rest (s)", value: $exercise.restSeconds, range: 30...300, step: 15)
+                                CustomStepper(label: String(localized: "stepper_rest_s"), value: $exercise.restSeconds, range: 30...300, step: 15)
                             }
                         }
                     }
 
                     GlassCard {
                         VStack(alignment: .leading, spacing: AppSpacing.md) {
-                            Text("Notes")
+                            Text("form_notes")
                                 .font(AppTypography.footnote)
                                 .foregroundColor(AppColors.textSecondary)
-                            TextField("Coaching notes", text: Binding(
+                            TextField(String(localized: "placeholder_coaching_notes"), text: Binding(
                                 get: { exercise.notes ?? "" },
                                 set: { exercise.notes = $0.isEmpty ? nil : $0 }
                             ))
@@ -787,7 +787,7 @@ struct ExerciseEditorView: View {
                 .padding(.vertical, AppSpacing.lg)
             }
         }
-        .navigationTitle("Exercise")
+        .navigationTitle("nav_exercise")
         .navigationBarTitleDisplayMode(.inline)
         .onDisappear { onSave(exercise) }
     }
@@ -864,15 +864,15 @@ struct SendUpdateView: View {
                     .foregroundColor(AppColors.accent)
                     .scaleEffect(didSend ? 1.05 : 1.0)
                     .animation(.spring(response: 0.4, dampingFraction: 0.7), value: didSend)
-                Text(didSend ? "Update sent" : "Send update to athlete")
+                Text(didSend ? String(localized: "update_sent") : String(localized: "button_send_update"))
                     .font(AppTypography.title2)
-                Text("This will notify the athlete that their plan has changed.")
+                Text("send_update_notify_message")
                     .font(AppTypography.body)
                     .foregroundColor(AppColors.textSecondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, AppSpacing.lg)
                 Spacer()
-                PrimaryButton(title: didSend ? "Done" : "Send update") {
+                PrimaryButton(title: didSend ? String(localized: "button_done") : String(localized: "button_send_update_short")) {
                     if !didSend {
                         sendUpdate()
                     }
@@ -910,15 +910,15 @@ struct CoachUpdatesView: View {
         ScrollView {
             VStack(spacing: AppSpacing.lg) {
                 SectionHeader(
-                    title: "Recent updates",
-                    subtitle: "What your athletes will see next"
+                    title: String(localized: "section_recent_updates"),
+                    subtitle: String(localized: "recent_updates_subtitle")
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
                 GlassCard {
                     VStack(alignment: .leading, spacing: AppSpacing.md) {
-                        Text("Change log")
+                        Text("change_log")
                             .font(AppTypography.headline)
-                        Text("Preview of sent updates will appear here. For now this is a static mock.")
+                        Text("updates_preview_placeholder")
                             .font(AppTypography.body)
                             .foregroundColor(AppColors.textSecondary)
                     }
@@ -929,7 +929,7 @@ struct CoachUpdatesView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppColors.background)
-        .navigationTitle("Updates")
+        .navigationTitle("nav_updates")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -958,7 +958,7 @@ struct CoachProfileView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(coach.name)
                                     .font(AppTypography.title2)
-                                Text("Coach workspace • Tap to edit")
+                                Text("coach_edit_hint")
                                     .font(AppTypography.footnote)
                                     .foregroundColor(AppColors.textSecondary)
                             }
@@ -971,7 +971,7 @@ struct CoachProfileView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.plain)
-                SectionHeader(title: "Workspace", actionTitle: nil, action: nil)
+                SectionHeader(title: String(localized: "section_workspace"), actionTitle: nil, action: nil)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 VStack(spacing: AppSpacing.md) {
                     NavigationLink {
@@ -980,7 +980,7 @@ struct CoachProfileView: View {
                         HStack {
                             Image(systemName: "person.badge.plus")
                                 .foregroundColor(AppColors.accent)
-                            Text("Generate invite code")
+                            Text("generate_invite_code")
                                 .font(AppTypography.callout)
                                 .fontWeight(.medium)
                                 .foregroundColor(AppColors.textPrimary)
@@ -1002,9 +1002,9 @@ struct CoachProfileView: View {
                         )
                     }
                     .buttonStyle(.plain)
-                    SecondaryButton(title: "Billing & subscription") { }
-                    SecondaryButton(title: "Export data") { }
-                    SecondaryButton(title: "Sign out") {
+                    SecondaryButton(title: String(localized: "billing_subscription")) { }
+                    SecondaryButton(title: String(localized: "export_data")) { }
+                    SecondaryButton(title: String(localized: "sign_out")) {
                         appState.signOut()
                     }
                 }
@@ -1015,7 +1015,7 @@ struct CoachProfileView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppColors.background)
-        .navigationTitle("Profile")
+        .navigationTitle("nav_profile")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showEditProfile) {
             CoachEditProfileSheet(coach: coach, appState: appState, onDismiss: { showEditProfile = false })
@@ -1038,10 +1038,10 @@ struct CoachEditProfileSheet: View {
             ZStack {
                 AppColors.background.ignoresSafeArea()
                 VStack(alignment: .leading, spacing: AppSpacing.xl) {
-                    Text("Name")
+                    Text("edit_profile_name_label")
                         .font(AppTypography.headline)
                         .foregroundColor(AppColors.textPrimary)
-                    TextField("Your name", text: $name)
+                    TextField(String(localized: "placeholder_your_name"), text: $name)
                         .textContentType(.name)
                         .font(AppTypography.body)
                         .padding(.horizontal, AppSpacing.md)
@@ -1060,14 +1060,14 @@ struct CoachEditProfileSheet: View {
                 .padding(.horizontal, AppSpacing.lg)
                 .padding(.top, AppSpacing.xl)
             }
-            .navigationTitle("Edit profile")
+            .navigationTitle("edit_profile_title")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onDismiss() }
+                    Button(String(localized: "button_cancel")) { onDismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }
+                    Button(String(localized: "button_save")) { save() }
                         .disabled(isSaving || name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
@@ -1110,8 +1110,8 @@ struct CoachInviteCodeView: View {
             ScrollView {
                 VStack(spacing: AppSpacing.xl) {
                     SectionHeader(
-                        title: "Invite athletes",
-                        subtitle: "Generate a code. Athletes enter it when signing up. Valid for 24 hours."
+                        title: String(localized: "invite_athletes_title"),
+                        subtitle: String(localized: "invite_athletes_subtitle")
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -1121,7 +1121,7 @@ struct CoachInviteCodeView: View {
                                 Text(code)
                                     .font(.system(size: 28, weight: .bold, design: .monospaced))
                                     .tracking(4)
-                                Text("Expires \(formattedExpiry(expires))")
+                                Text(String(format: String(localized: "expires_format"), formattedExpiry(expires)))
                                     .font(AppTypography.footnote)
                                     .foregroundColor(AppColors.textSecondary)
                             }
@@ -1138,7 +1138,7 @@ struct CoachInviteCodeView: View {
                             .padding(.horizontal)
                     }
 
-                    PrimaryButton(title: generatedCode == nil ? "Generate code" : "Generate new code") {
+                    PrimaryButton(title: generatedCode == nil ? String(localized: "button_generate_code") : String(localized: "button_generate_new_code")) {
                         generateCode()
                     }
                     .padding(.horizontal, AppSpacing.lg)
@@ -1149,7 +1149,7 @@ struct CoachInviteCodeView: View {
                 ProgressView()
             }
         }
-        .navigationTitle("Invite code")
+        .navigationTitle("nav_invite_code_coach")
         .navigationBarTitleDisplayMode(.inline)
     }
 

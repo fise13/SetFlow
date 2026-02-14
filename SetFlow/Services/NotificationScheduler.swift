@@ -36,8 +36,8 @@ final class NotificationScheduler {
     private func scheduleReminder(title: String, hour: Int) {
         cancelWorkoutReminders()
         let content = UNMutableNotificationContent()
-        content.title = "Time to train"
-        content.body = "\(title) is on your schedule for today."
+        content.title = String(localized: "notification_train_title")
+        content.body = String(format: String(localized: "notification_train_body"), title)
         content.sound = .default
         var components = DateComponents()
         components.hour = hour

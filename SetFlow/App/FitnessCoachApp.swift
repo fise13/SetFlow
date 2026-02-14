@@ -123,7 +123,7 @@ struct RootView: View {
             VStack(spacing: AppSpacing.lg) {
                 ProgressView()
                     .scaleEffect(1.2)
-                Text("Loading…")
+                Text("loading")
                     .font(AppTypography.callout)
                     .foregroundColor(AppColors.textSecondary)
             }

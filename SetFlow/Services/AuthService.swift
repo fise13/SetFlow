@@ -63,27 +63,27 @@ final class AuthService: ObservableObject {
         guard let code = AuthErrorCode(rawValue: ns.code) else { return error.localizedDescription }
         switch code {
         case .userNotFound:
-            return "No account found with this email. Check the address or sign up."
+            return String(localized: "auth_error_user_not_found")
         case .wrongPassword:
-            return "Incorrect password. Try again or use “Forgot password?”."
+            return String(localized: "auth_error_wrong_password")
         case .invalidEmail:
-            return "Please enter a valid email address."
+            return String(localized: "auth_error_invalid_email")
         case .invalidCredential:
-            return "Invalid or expired login. Please sign in again with your email and password."
+            return String(localized: "auth_error_invalid_credential")
         case .userDisabled:
-            return "This account has been disabled. Contact support."
+            return String(localized: "auth_error_user_disabled")
         case .emailAlreadyInUse:
-            return "This email is already registered. Sign in or use “Forgot password?”."
+            return String(localized: "auth_error_email_in_use")
         case .weakPassword:
-            return "Password is too weak. Use at least 6 characters."
+            return String(localized: "auth_error_weak_password")
         case .tooManyRequests:
-            return "Too many attempts. Please try again in a few minutes."
+            return String(localized: "auth_error_too_many_requests")
         case .networkError:
-            return "No internet connection. Check your network and try again."
+            return String(localized: "auth_error_network")
         case .operationNotAllowed:
-            return "Email sign-in is not enabled for this app. Contact support."
+            return String(localized: "auth_error_operation_not_allowed")
         case .requiresRecentLogin:
-            return "Please sign out and sign in again, then try again."
+            return String(localized: "auth_error_requires_recent_login")
         default:
             return error.localizedDescription
         }

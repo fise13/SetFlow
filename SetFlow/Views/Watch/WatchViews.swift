@@ -11,13 +11,13 @@ struct WatchWorkoutListView: View {
                 VStack(alignment: .leading) {
                     Text(workout.title)
                         .font(.headline)
-                    Text("\(workout.exercises.count) exercises")
+                    Text(String(format: String(localized: "watch_exercises_count"), workout.exercises.count))
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
             }
         }
-        .navigationTitle("Workouts")
+        .navigationTitle(String(localized: "watch_nav_workouts"))
     }
 }
 
@@ -41,22 +41,22 @@ struct WatchWorkoutLiveView: View {
                 .font(.headline)
                 .lineLimit(2)
             
-            Text("Set \(currentSet) / \(exercise.sets)")
+            Text(String(format: String(localized: "watch_set_format"), currentSet, exercise.sets))
                 .font(.caption2)
             
-            Text("\(exercise.reps) reps • \(Int(exercise.weight)) kg")
+            Text(String(format: String(localized: "watch_reps_kg"), exercise.reps, Int(exercise.weight)))
                 .font(.caption2)
                 .foregroundColor(.secondary)
             
             Spacer()
             
             NavigationLink(destination: WatchRestTimerView(restSeconds: exercise.restSeconds)) {
-                Text("Done")
+                Text(String(localized: "watch_done"))
                     .font(.headline)
             }
         }
         .padding()
-        .navigationTitle("Live")
+        .navigationTitle(String(localized: "watch_nav_live"))
     }
 }
 
@@ -73,9 +73,9 @@ struct WatchRestTimerView: View {
     
     var body: some View {
         VStack(spacing: 8) {
-            Text("Rest")
+            Text(String(localized: "watch_nav_rest"))
                 .font(.headline)
-            Text("\(remaining)s")
+            Text(String(format: String(localized: "rest_seconds_format"), remaining))
                 .font(.system(size: 32, weight: .bold, design: .rounded))
             
             ProgressView(value: Double(restSeconds - remaining), total: Double(restSeconds))
@@ -84,7 +84,7 @@ struct WatchRestTimerView: View {
             Spacer()
             
             NavigationLink(destination: WatchWorkoutFinishView()) {
-                Text("Skip")
+                Text(String(localized: "watch_skip"))
             }
         }
         .padding()
@@ -92,7 +92,7 @@ struct WatchRestTimerView: View {
             // Simple animation placeholder instead of real timer
             withAnimation(.easeInOut(duration: 0.3)) { }
         }
-        .navigationTitle("Rest")
+        .navigationTitle(String(localized: "watch_nav_rest"))
     }
 }
 
@@ -104,11 +104,11 @@ struct WatchWorkoutFinishView: View {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 40))
                 .foregroundColor(.green)
-            Text("Done")
+            Text(String(localized: "watch_done"))
                 .font(.headline)
         }
         .padding()
-        .navigationTitle("Finish")
+        .navigationTitle(String(localized: "watch_nav_finish"))
     }
 }
 

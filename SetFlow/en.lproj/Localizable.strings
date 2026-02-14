@@ -1,0 +1,292 @@
+/* App & Loading */
+"loading" = "Loading…";
+
+/* Onboarding */
+"onboarding_title_train" = "Train with intention";
+"onboarding_subtitle_train" = "Personalized strength blocks, designed by your coach and delivered to your wrist.";
+"onboarding_title_focus" = "Focus on the next set";
+"onboarding_subtitle_focus" = "Clear live workout mode with timers, progress rings and subtle haptics.";
+"onboarding_title_coaches" = "Coaches in sync";
+"onboarding_subtitle_coaches" = "Coaches edit plans, send updates and track athlete progress in real time.";
+"brand_name" = "SETFLOW";
+"button_continue" = "Continue";
+"button_get_started" = "Get started";
+"skip_to_sign_in" = "Skip to sign in";
+
+/* Sign In */
+"signin_welcome_back" = "Welcome back";
+"signin_subtitle" = "Sign in to continue your training journey";
+"signin_continue_apple" = "Continue with Apple";
+"signin_continue_email" = "Continue with Email";
+"form_email" = "Email";
+"form_password" = "Password";
+"placeholder_email" = "your@email.com";
+"placeholder_password" = "Enter your password";
+"forgot_password" = "Forgot password?";
+"button_sign_in" = "Sign In";
+"no_account" = "Don't have an account?";
+"button_sign_up" = "Sign up";
+"terms_agreement" = "By continuing, you agree to SetFlow's Terms of Service and Privacy Policy.";
+"error_apple_not_configured" = "Sign in with Apple is not configured yet. Please use Email to sign in.";
+"error_email_required" = "Email is required";
+"error_email_invalid" = "Please enter a valid email";
+"error_password_required" = "Password is required";
+"error_password_min_length" = "Password must be at least 6 characters";
+
+/* Forgot Password */
+"forgot_password_title" = "Forgot password";
+"forgot_password_message" = "Enter the email address for your account. We'll send you a link to reset your password.";
+"button_send_reset_link" = "Send reset link";
+"sending" = "Sending…";
+"button_cancel" = "Cancel";
+"reset_password_sent" = "Check your email. We sent a link to reset your password to %@.";
+"error_valid_email" = "Please enter a valid email address.";
+
+/* Sign Up */
+"signup_title" = "Sign up";
+"form_name" = "Name";
+"placeholder_name" = "Your name";
+"placeholder_password_min" = "Min 6 characters";
+"button_create_account" = "Create account";
+"error_valid_email_signup" = "Please enter a valid email";
+"error_password_min_signup" = "Password must be at least 6 characters";
+
+/* Role Selection */
+"role_title" = "Choose your role";
+"role_subtitle" = "Are you training athletes or following a coach's plan?";
+"role_athlete" = "I'm an athlete";
+"role_athlete_desc" = "Follow precise programming from your coach, track every set and see your progress.";
+"role_coach" = "I'm a coach";
+"role_coach_desc" = "Design blocks, adjust plans on the fly and keep every athlete on track.";
+"nav_role" = "Role";
+
+/* Invite Code */
+"invite_title" = "Connect with your coach";
+"invite_subtitle" = "Enter the invite code they sent you. Format: XXXX-XXXX.";
+"invite_code_label" = "Invite code";
+"placeholder_invite_code" = "e.g. A7K2-19QP";
+"button_continue" = "Continue";
+"error_invite_required" = "Enter the code from your coach";
+"error_invite_invalid" = "Invalid or expired code. Ask your coach for a new one.";
+"nav_invite_code" = "Invite code";
+"button_continue_label" = "Continue";
+
+/* Auth Errors */
+"auth_error_user_not_found" = "No account found with this email. Check the address or sign up.";
+"auth_error_wrong_password" = "Incorrect password. Try again or use \"Forgot password?\".";
+"auth_error_invalid_email" = "Please enter a valid email address.";
+"auth_error_invalid_credential" = "Invalid or expired login. Please sign in again with your email and password.";
+"auth_error_user_disabled" = "This account has been disabled. Contact support.";
+"auth_error_email_in_use" = "This email is already registered. Sign in or use \"Forgot password?\".";
+"auth_error_weak_password" = "Password is too weak. Use at least 6 characters.";
+"auth_error_too_many_requests" = "Too many attempts. Please try again in a few minutes.";
+"auth_error_network" = "No internet connection. Check your network and try again.";
+"auth_error_operation_not_allowed" = "Email sign-in is not enabled for this app. Contact support.";
+"auth_error_requires_recent_login" = "Please sign out and sign in again, then try again.";
+
+/* Tab Bar - Athlete */
+"tab_home" = "Home";
+"tab_workout" = "Workout";
+"tab_progress" = "Progress";
+"tab_profile" = "Profile";
+
+/* Tab Bar - Coach */
+"tab_athletes" = "Athletes";
+"tab_programs" = "Programs";
+"tab_updates" = "Updates";
+
+/* Athlete Home */
+"today" = "Today";
+"home_greeting_subtitle" = "Let's get your training done.";
+"today_focus_format" = "Today • %@";
+"no_workout_today" = "No workout scheduled";
+"no_workout_today_desc" = "Your coach hasn't planned anything for today.";
+"section_this_week" = "This week";
+"stat_streak" = "Streak";
+"stat_volume" = "Volume";
+"stat_volume_week" = "this week";
+"stat_next" = "Next";
+"stat_planned" = "planned";
+"this_week" = "this week";
+"days_in_a_row" = "days in a row";
+"streak_days_format" = "%d days in a row";
+"streak_day_format" = "1 day in a row";
+"section_recent" = "Recent";
+"see_all" = "See all";
+"no_workouts_yet" = "No workouts yet";
+"no_workouts_yet_desc" = "Complete a workout to see it here.";
+"duration_min_format" = "%d min";
+
+/* Workout Tab Empty */
+"no_workout_today_title" = "No workout today";
+"no_workout_today_message" = "Your coach hasn't scheduled a session for today. Check back tomorrow or look at your week on Home.";
+"nav_workout" = "Workout";
+
+/* Workout Detail */
+"exercises_count_format" = "%d exercises";
+"section_exercises" = "Exercises";
+"button_start_workout" = "Start workout";
+
+/* Live Workout */
+"exercise_progress_format" = "Exercise %d of %d";
+"set_progress_format" = "Set %d / %d";
+"rest_label" = "Rest";
+"rest_seconds_format" = "%ds";
+"button_skip_rest" = "Skip rest";
+"button_done_set" = "Done set";
+"no_exercises" = "No exercises";
+"button_end_workout_early" = "End workout early";
+"nav_live" = "Live";
+"all_sets_complete" = "All sets complete!";
+"sets_volume_format" = "%d sets • %@ volume";
+"button_see_summary" = "See summary";
+
+/* Workout Summary */
+"workout_complete" = "Workout complete";
+"summary_duration" = "Duration";
+"summary_duration_format" = "%d min";
+"summary_sets" = "Total sets";
+"summary_total_sets" = "Total sets";
+"summary_volume" = "Volume";
+"summary_rating" = "Rating";
+"button_save_go_home" = "Save and go home";
+"saving" = "Saving…";
+
+/* History */
+"section_history" = "History";
+"no_workouts_logged" = "No workouts logged yet";
+"no_workouts_logged_desc" = "Complete a workout from the Workout tab to see it here.";
+"section_this_week_volume" = "This week";
+"total_volume" = "Total volume";
+"nav_history" = "History";
+
+/* Progress */
+"section_progress" = "Progress";
+"progress_subtitle" = "Volume over the last weeks";
+"training_volume" = "Training volume";
+"complete_workouts_for_chart" = "Complete workouts to see your volume chart.";
+"volume_chart" = "Volume chart";
+"section_highlights" = "Highlights";
+"highlights_subtitle" = "From your logged workouts";
+"current_streak" = "Current streak";
+"heaviest_workout" = "Heaviest workout";
+"single_session_volume" = "Single session volume";
+"nav_progress" = "Progress";
+
+/* Athlete Profile */
+"athlete_profile_edit_hint" = "Athlete profile • Tap to edit";
+"section_preferences" = "Preferences";
+"units_label" = "Units";
+"notifications_label" = "Notifications";
+"reminder_time_label" = "Reminder time";
+"section_account" = "Account";
+"manage_subscription" = "Manage subscription";
+"sign_out" = "Sign out";
+"nav_profile" = "Profile";
+
+/* Edit Profile */
+"edit_profile_title" = "Edit profile";
+"edit_profile_name_label" = "Name";
+"placeholder_your_name" = "Your name";
+"button_save" = "Save";
+
+/* Units Picker */
+"nav_units" = "Units";
+"button_done" = "Done";
+"unit_kilograms" = "Kilograms";
+"unit_pounds" = "Pounds";
+
+/* Reminder Time */
+"reminder_daily_message" = "Daily reminder for today's workout";
+"reminder_hour_format" = "Hour: %d:00";
+"nav_reminder_time" = "Reminder time";
+
+/* Coach Dashboard */
+"section_athletes" = "Athletes";
+"athletes_subtitle" = "Manage everyone in one place";
+"filter_active" = "Active";
+"last_workout_volume_format" = "Last workout: 2d ago • Volume: 14,200 kg";
+"nav_dashboard" = "Dashboard";
+"active_badge" = "ACTIVE";
+"section_progress_coach" = "Progress";
+"summary_label" = "Summary";
+"placeholder_charts" = "Placeholder charts and stats. Replace with real data later.";
+"section_plan" = "Plan";
+"nav_athlete" = "Athlete";
+"tap_to_manage_plan" = "Tap to manage plan";
+
+/* Coach - No Athletes */
+"no_athletes_yet" = "No athletes yet";
+"no_athletes_desc" = "Generate an invite code from Profile and share it with athletes to connect.";
+
+/* Coach Programs */
+"nav_programs" = "Programs";
+"section_weekly_schedule" = "Weekly schedule";
+"no_plan_yet" = "No plan yet";
+"button_create_plan" = "Create plan";
+
+/* Plan Builder */
+"workout_day_title" = "Workout day";
+"workout_day_subtitle" = "Tap an exercise to edit • Date sets when this workout is scheduled";
+"workout_number_format" = "Workout %d";
+"date_label" = "Date";
+"button_add" = "Add";
+"button_send_update" = "Send update to athlete";
+"button_send_update_short" = "Send update";
+"update_sent" = "Update sent";
+"send_update_notify_message" = "This will notify the athlete that their plan has changed.";
+"exercise_section_title" = "Exercise";
+"exercise_section_subtitle" = "Fine-tune sets, reps and load";
+"form_sets_reps" = "Sets & reps";
+"form_load_rest" = "Load & rest";
+"form_notes" = "Notes";
+"placeholder_exercise_name" = "Bench Press";
+"placeholder_coaching_notes" = "Coaching notes";
+"nav_exercise" = "Exercise";
+"stepper_sets" = "Sets";
+"stepper_reps" = "Reps";
+"stepper_weight_kg" = "Weight (kg)";
+"stepper_rest_s" = "Rest (s)";
+"section_recent_updates" = "Recent updates";
+"recent_updates_subtitle" = "What your athletes will see next";
+"change_log" = "Change log";
+"updates_preview_placeholder" = "Preview of sent updates will appear here. For now this is a static mock.";
+"nav_updates" = "Updates";
+"section_workspace" = "Workspace";
+
+/* Coach Profile */
+"coach_workspace" = "Coach workspace";
+"coach_edit_hint" = "Coach workspace • Tap to edit";
+"generate_invite_code" = "Generate invite code";
+"billing_subscription" = "Billing & subscription";
+"export_data" = "Export data";
+
+/* Invite Code (Coach) */
+"invite_athletes_title" = "Invite athletes";
+"invite_athletes_subtitle" = "Generate a code. Athletes enter it when signing up. Valid for 24 hours.";
+"expires_format" = "Expires %@";
+"button_generate_code" = "Generate code";
+"button_generate_new_code" = "Generate new code";
+"nav_invite_code_coach" = "Invite code";
+
+/* Notifications */
+"notification_train_title" = "Time to train";
+"notification_train_body" = "%@ is on your schedule for today.";
+
+/* Progress complete (component) */
+"progress_complete_format" = "%d%% complete";
+
+/* Watch */
+"watch_nav_workouts" = "Workouts";
+"watch_exercises_count" = "%d exercises";
+"watch_nav_live" = "Live";
+"watch_set_format" = "Set %d / %d";
+"watch_reps_kg" = "%d reps • %d kg";
+"watch_done" = "Done";
+"watch_nav_rest" = "Rest";
+"watch_skip" = "Skip";
+"watch_nav_finish" = "Finish";
+
+/* Common */
+"days" = "days";
+"day" = "day";

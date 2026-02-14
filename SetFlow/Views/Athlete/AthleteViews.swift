@@ -15,10 +15,10 @@ enum AthleteTab: String, CaseIterable {
     
     var title: String {
         switch self {
-        case .home: return "Home"
-        case .workout: return "Workout"
-        case .progress: return "Progress"
-        case .profile: return "Profile"
+        case .home: return String(localized: "tab_home")
+        case .workout: return String(localized: "tab_workout")
+        case .progress: return String(localized: "tab_progress")
+        case .profile: return String(localized: "tab_profile")
         }
     }
     
@@ -102,9 +102,9 @@ struct AthleteTabRootView: View {
                         Image(systemName: "calendar.badge.clock")
                             .font(.system(size: 44))
                             .foregroundColor(AppColors.textMuted)
-                        Text("No workout today")
+                        Text("no_workout_today_title")
                             .font(AppTypography.title2)
-                        Text("Your coach hasn’t scheduled a session for today. Check back tomorrow or look at your week on Home.")
+                        Text("no_workout_today_message")
                             .font(AppTypography.body)
                             .foregroundColor(AppColors.textSecondary)
                             .multilineTextAlignment(.center)
@@ -116,7 +116,7 @@ struct AthleteTabRootView: View {
                 Spacer()
             }
         }
-        .navigationTitle("Workout")
+        .navigationTitle("nav_workout")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -288,7 +288,7 @@ struct AthleteHomeView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
-                Text("Today")
+                Text("today")
                     .font(AppTypography.title2)
                     .foregroundColor(AppColors.textPrimary)
             }
@@ -307,7 +307,7 @@ struct AthleteHomeView: View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
             Text("Hi, \(viewModel.user.name.split(separator: " ").first ?? "Athlete")")
                 .font(AppTypography.title1)
-            Text("Let’s get your training done.")
+            Text("home_greeting_subtitle")
                 .font(AppTypography.body)
                 .foregroundColor(AppColors.textSecondary)
         }
@@ -322,7 +322,7 @@ struct AthleteHomeView: View {
                 } label: {
                     WorkoutHeroCard(
                         title: today.title,
-                        subtitle: "Today • \(today.focus)",
+                        subtitle: String(format: String(localized: "today_focus_format"), today.focus),
                         detail: "\(today.exercises.count) exercises",
                         progress: viewModel.todayProgress
                     )
@@ -332,9 +332,9 @@ struct AthleteHomeView: View {
             } else {
                 GlassCard {
                     VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                        Text("No workout scheduled")
+                        Text("no_workout_today")
                             .font(AppTypography.headline)
-                        Text("Your coach hasn’t planned anything for today.")
+                        Text("no_workout_today_desc")
                             .font(AppTypography.body)
                             .foregroundColor(AppColors.textSecondary)
                     }
@@ -346,7 +346,7 @@ struct AthleteHomeView: View {
     
     private var weeklyStrip: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            SectionHeader(title: "This week", actionTitle: nil, action: nil)
+            SectionHeader(title: String(localized: "section_this_week"), actionTitle: nil, action: nil)
             WeeklyCalendarStrip(selectedDate: $selectedDate)
         }
     }
@@ -357,15 +357,15 @@ struct AthleteHomeView: View {
         let streakSubtitle = viewModel.streakDays == 1 ? "day" : "days"
         
         return HStack(spacing: AppSpacing.md) {
-            AthleteStatTile(title: "Streak", value: streak, subtitle: streakSubtitle + " in a row", icon: "flame.fill")
-            AthleteStatTile(title: "Volume", value: volume, subtitle: "this week", icon: "chart.bar.fill")
+            AthleteStatTile(title: String(localized: "stat_streak"), value: streak, subtitle: streakSubtitle + " " + String(localized: "in_a_row"), icon: "flame.fill")
+            AthleteStatTile(title: String(localized: "stat_volume"), value: volume, subtitle: String(localized: "this_week"), icon: "chart.bar.fill")
         }
         .padding(.horizontal, AppSpacing.lg)
         .padding(.bottom, AppSpacing.sm)
         .overlay(
             HStack {
                 Spacer()
-                AthleteStatTile(title: "Next", value: viewModel.nextWorkoutTitle, subtitle: "planned", icon: "calendar.badge.clock")
+                AthleteStatTile(title: String(localized: "stat_next"), value: viewModel.nextWorkoutTitle, subtitle: String(localized: "planned"), icon: "calendar.badge.clock")
                     .frame(width: 170)
             }
             .padding(.trailing, AppSpacing.lg),
@@ -376,14 +376,14 @@ struct AthleteHomeView: View {
     private var recentWorkouts: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
             HStack(alignment: .firstTextBaseline, spacing: AppSpacing.sm) {
-                Text("Recent")
+                Text("section_recent")
                     .font(AppTypography.headline)
                     .foregroundColor(AppColors.textPrimary)
                 Spacer()
                 NavigationLink {
                     HistoryView(logs: viewModel.history)
                 } label: {
-                    Text("See all")
+                    Text("see_all")
                         .font(AppTypography.footnote)
                         .foregroundColor(AppColors.accentSecondary)
                 }
@@ -398,9 +398,9 @@ struct AthleteHomeView: View {
                         Image(systemName: "figure.run")
                             .font(.system(size: 32))
                             .foregroundColor(AppColors.textMuted)
-                        Text("No workouts yet")
+                        Text("no_workouts_yet")
                             .font(AppTypography.headline)
-                        Text("Complete a workout to see it here.")
+                        Text("no_workouts_yet_desc")
                             .font(AppTypography.footnote)
                             .foregroundColor(AppColors.textSecondary)
                             .multilineTextAlignment(.center)
@@ -423,7 +423,7 @@ struct AthleteHomeView: View {
                                 }
                                 Spacer()
                                 VStack(alignment: .trailing, spacing: 4) {
-                                    Text("\(log.durationMinutes) min")
+                                    Text(String(format: String(localized: "duration_min_format"), log.durationMinutes))
                                         .font(AppTypography.footnote)
                                         .foregroundColor(AppColors.textSecondary)
                                     Text(String(repeating: "★", count: log.rating))
@@ -462,14 +462,14 @@ struct WorkoutDetailView: View {
                         Text(workoutDay.focus)
                             .font(AppTypography.body)
                             .foregroundColor(AppColors.textSecondary)
-                        Text("\(workoutDay.exercises.count) exercises")
+                        Text(String(format: String(localized: "exercises_count_format"), workoutDay.exercises.count))
                             .font(AppTypography.caption)
                             .foregroundColor(AppColors.textSecondary)
                     }
                 }
                 .padding(.horizontal, AppSpacing.lg)
 
-                SectionHeader(title: "Exercises", actionTitle: nil, action: nil)
+                SectionHeader(title: String(localized: "section_exercises"), actionTitle: nil, action: nil)
 
                 ScrollView {
                     VStack(spacing: 0) {
@@ -484,14 +484,14 @@ struct WorkoutDetailView: View {
                 NavigationLink {
                     LiveWorkoutView(workoutDay: workoutDay, athleteId: athleteId)
                 } label: {
-                    PrimaryButtonLabel(title: "Start workout")
+                    PrimaryButtonLabel(title: String(localized: "button_start_workout"))
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, AppSpacing.lg)
                 .padding(.bottom, AppSpacing.lg)
             }
         }
-        .navigationTitle("Workout")
+        .navigationTitle("nav_workout")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -635,7 +635,7 @@ struct LiveWorkoutView: View {
                     VStack(spacing: AppSpacing.sm) {
                         Text(viewModel.workoutDay.title)
                             .font(AppTypography.headline)
-                        Text("Exercise \(viewModel.currentExerciseIndex + 1) of \(viewModel.workoutDay.exercises.count)")
+                        Text(String(format: String(localized: "exercise_progress_format"), viewModel.currentExerciseIndex + 1, viewModel.workoutDay.exercises.count))
                             .font(AppTypography.footnote)
                             .foregroundColor(AppColors.textSecondary)
                     }
@@ -657,7 +657,7 @@ struct LiveWorkoutView: View {
                                     .rotationEffect(.degrees(-90))
                                     .animation(.easeInOut(duration: 0.3), value: viewModel.progress)
                                 VStack {
-                                    Text("Set \(viewModel.currentSet) / \(ex.sets)")
+                                    Text(String(format: String(localized: "set_progress_format"), viewModel.currentSet, ex.sets))
                                         .font(AppTypography.headline)
                                     Text("\(Int(viewModel.progress * 100))%")
                                         .font(AppTypography.caption)
@@ -671,9 +671,9 @@ struct LiveWorkoutView: View {
 
                     if viewModel.isResting {
                         VStack(spacing: AppSpacing.sm) {
-                            Text("Rest")
+                            Text("rest_label")
                                 .font(AppTypography.headline)
-                            Text("\(viewModel.restRemaining)s")
+                            Text(String(format: String(localized: "rest_seconds_format"), viewModel.restRemaining))
                                 .font(AppTypography.largeTitle)
                             CustomProgressBar(progress: Double(viewModel.restRemaining) / Double(ex.restSeconds))
                                 .frame(height: 12)
@@ -684,18 +684,18 @@ struct LiveWorkoutView: View {
 
                     HStack(spacing: AppSpacing.md) {
                         if viewModel.isResting {
-                            PrimaryButton(title: "Skip rest", fullWidth: true) {
+                            PrimaryButton(title: String(localized: "button_skip_rest"), fullWidth: true) {
                                 viewModel.skipRest()
                             }
                         } else {
-                            PrimaryButton(title: "Done set", fullWidth: true) {
+                            PrimaryButton(title: String(localized: "button_done_set"), fullWidth: true) {
                                 viewModel.doneSet()
                             }
                         }
                     }
                     .padding(.horizontal, AppSpacing.lg)
                 } else {
-                    Text("No exercises")
+                    Text("no_exercises")
                         .font(AppTypography.body)
                         .foregroundColor(AppColors.textSecondary)
                 }
@@ -704,7 +704,7 @@ struct LiveWorkoutView: View {
                     Button {
                         showSummary = true
                     } label: {
-                        Text("End workout early")
+                        Text("button_end_workout_early")
                             .font(AppTypography.footnote)
                             .foregroundColor(AppColors.textSecondary)
                             .padding(.vertical, AppSpacing.sm)
@@ -713,7 +713,7 @@ struct LiveWorkoutView: View {
                 }
             }
         }
-        .navigationTitle("Live")
+        .navigationTitle("nav_live")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showSummary) {
             WorkoutSummaryView(log: viewModel.buildLog(athleteId: athleteId))
@@ -725,12 +725,12 @@ struct LiveWorkoutView: View {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 60))
                 .foregroundColor(AppColors.accent)
-            Text("All sets complete!")
+            Text("all_sets_complete")
                 .font(AppTypography.title2)
-            Text("\(viewModel.completedSetsCount) sets • \(prefs.displayVolume(kg: viewModel.totalVolume)) volume")
+            Text(String(format: String(localized: "sets_volume_format"), viewModel.completedSetsCount, prefs.displayVolume(kg: viewModel.totalVolume)))
                 .font(AppTypography.body)
                 .foregroundColor(AppColors.textSecondary)
-            PrimaryButton(title: "See summary") {
+            PrimaryButton(title: String(localized: "button_see_summary")) {
                 showSummary = true
             }
             .padding(.horizontal, AppSpacing.lg)
@@ -766,7 +766,7 @@ struct WorkoutSummaryView: View {
                     .foregroundColor(AppColors.accent)
                     .padding(.bottom, AppSpacing.md)
 
-                Text("Workout complete")
+                Text("workout_complete")
                     .font(AppTypography.title2)
 
                 Text(log.workoutTitle)
@@ -775,11 +775,11 @@ struct WorkoutSummaryView: View {
 
                 CardView {
                     VStack(alignment: .leading, spacing: AppSpacing.md) {
-                        summaryRow(label: "Duration", value: "\(log.durationMinutes) min")
-                        summaryRow(label: "Total sets", value: "\(log.totalSets)")
-                        summaryRow(label: "Volume", value: prefs.displayVolume(kg: log.totalVolume))
+                        summaryRow(label: String(localized: "summary_duration"), value: String(format: String(localized: "duration_min_format"), log.durationMinutes))
+                        summaryRow(label: String(localized: "summary_total_sets"), value: "\(log.totalSets)")
+                        summaryRow(label: String(localized: "summary_volume"), value: prefs.displayVolume(kg: log.totalVolume))
                         HStack {
-                            Text("Rating")
+                            Text("summary_rating")
                                 .font(AppTypography.body)
                             Spacer()
                             ratingPicker
@@ -797,7 +797,7 @@ struct WorkoutSummaryView: View {
 
                 Spacer()
 
-                PrimaryButton(title: isSaving ? "Saving…" : "Save and go home", fullWidth: true) {
+                PrimaryButton(title: isSaving ? String(localized: "saving") : String(localized: "button_save_go_home"), fullWidth: true) {
                     saveAndGoHome()
                 }
                 .padding(.horizontal, AppSpacing.lg)
@@ -882,16 +882,16 @@ struct HistoryView: View {
             AppColors.background.ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.lg) {
-                    SectionHeader(title: "History", actionTitle: nil, action: nil)
+                    SectionHeader(title: String(localized: "section_history"), actionTitle: nil, action: nil)
                     if logs.isEmpty {
                         GlassCard {
                             VStack(spacing: AppSpacing.sm) {
                                 Image(systemName: "clock.arrow.circlepath")
                                     .font(.system(size: 36))
                                     .foregroundColor(AppColors.textMuted)
-                                Text("No workouts logged yet")
+                                Text("no_workouts_logged")
                                     .font(AppTypography.headline)
-                                Text("Complete a workout from the Workout tab to see it here.")
+                                Text("no_workouts_logged_desc")
                                     .font(AppTypography.footnote)
                                     .foregroundColor(AppColors.textSecondary)
                                     .multilineTextAlignment(.center)
@@ -913,7 +913,7 @@ struct HistoryView: View {
                                     }
                                     Spacer()
                                     VStack(alignment: .trailing, spacing: 4) {
-                                        Text("\(log.durationMinutes) min")
+                                        Text(String(format: String(localized: "duration_min_format"), log.durationMinutes))
                                             .font(AppTypography.footnote)
                                             .foregroundColor(AppColors.textSecondary)
                                         Text(String(repeating: "★", count: log.rating))
@@ -928,7 +928,7 @@ struct HistoryView: View {
                     }
                     
                     if !logs.isEmpty {
-                        SectionHeader(title: "This week", subtitle: "Total volume", actionTitle: nil, action: nil)
+                        SectionHeader(title: String(localized: "section_this_week"), subtitle: String(localized: "total_volume"), actionTitle: nil, action: nil)
                         CardView {
                             VStack(alignment: .leading, spacing: AppSpacing.sm) {
                                 Text(prefs.displayVolume(kg: volumeThisWeek))
@@ -941,7 +941,7 @@ struct HistoryView: View {
                 .padding(.vertical, AppSpacing.lg)
             }
         }
-        .navigationTitle("History")
+        .navigationTitle("nav_history")
         .navigationBarTitleDisplayMode(.inline)
     }
     
@@ -982,18 +982,18 @@ struct AthleteProgressView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.lg) {
                     SectionHeader(
-                        title: "Progress",
-                        subtitle: "Volume over the last weeks"
+                        title: String(localized: "section_progress"),
+                        subtitle: String(localized: "progress_subtitle")
                     )
                     
                     GlassCard {
                         VStack(alignment: .leading, spacing: AppSpacing.md) {
-                            Text("Training volume")
+                            Text("training_volume")
                                 .font(AppTypography.headline)
                             
                             #if canImport(Charts)
                             if logs.isEmpty {
-                                Text("Complete workouts to see your volume chart.")
+                                Text("complete_workouts_for_chart")
                                     .font(AppTypography.footnote)
                                     .foregroundColor(AppColors.textSecondary)
                                     .frame(maxWidth: .infinity)
@@ -1019,7 +1019,7 @@ struct AthleteProgressView: View {
                                 .frame(height: 200)
                                 .cornerRadius(AppTheme.Corners.lg)
                                 .overlay(
-                                    Text(logs.isEmpty ? "Complete workouts to see volume" : "Volume chart")
+                                    Text(logs.isEmpty ? String(localized: "complete_workouts_for_chart") : String(localized: "volume_chart"))
                                         .font(AppTypography.footnote)
                                         .foregroundColor(AppColors.textSecondary)
                                 )
@@ -1028,21 +1028,21 @@ struct AthleteProgressView: View {
                     }
                     
                     SectionHeader(
-                        title: "Highlights",
-                        subtitle: "From your logged workouts"
+                        title: String(localized: "section_highlights"),
+                        subtitle: String(localized: "highlights_subtitle")
                     )
                     
                     VStack(spacing: AppSpacing.md) {
                         AthleteStatTile(
-                            title: "Current streak",
+                            title: String(localized: "current_streak"),
                             value: streakDays == 0 ? "—" : "\(streakDays)",
-                            subtitle: streakDays == 1 ? "day" : "days in a row",
+                            subtitle: streakDays == 1 ? String(localized: "day") : String(localized: "days_in_a_row"),
                             icon: "flame.fill"
                         )
                         AthleteStatTile(
-                            title: "Heaviest workout",
+                            title: String(localized: "heaviest_workout"),
                             value: maxVolumeLogged == 0 ? "—" : prefs.displayVolume(kg: maxVolumeLogged),
-                            subtitle: "Single session volume",
+                            subtitle: String(localized: "single_session_volume"),
                             icon: "scalemass"
                         )
                     }
@@ -1051,7 +1051,7 @@ struct AthleteProgressView: View {
                 .padding(.vertical, AppSpacing.lg)
             }
         }
-        .navigationTitle("Progress")
+        .navigationTitle("nav_progress")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -1088,7 +1088,7 @@ struct AthleteProfileSettingsView: View {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(user.name)
                                         .font(AppTypography.title2)
-                                    Text("Athlete profile • Tap to edit")
+                                    Text("athlete_profile_edit_hint")
                                         .font(AppTypography.footnote)
                                         .foregroundColor(AppColors.textSecondary)
                                 }
@@ -1102,7 +1102,7 @@ struct AthleteProfileSettingsView: View {
                     .buttonStyle(.plain)
                     .padding(.horizontal, AppSpacing.lg)
 
-                    SectionHeader(title: "Preferences", actionTitle: nil, action: nil)
+                    SectionHeader(title: String(localized: "section_preferences"), actionTitle: nil, action: nil)
 
                     VStack(spacing: AppSpacing.md) {
                         Button {
@@ -1110,7 +1110,7 @@ struct AthleteProfileSettingsView: View {
                         } label: {
                             GlassCard(cornerRadius: AppTheme.Corners.md) {
                                 HStack {
-                                    Text("Units")
+                                    Text("units_label")
                                         .font(AppTypography.body)
                                     Spacer()
                                     Text(prefs.weightUnit.displayName)
@@ -1125,7 +1125,7 @@ struct AthleteProfileSettingsView: View {
 
                         GlassCard(cornerRadius: AppTheme.Corners.md) {
                             HStack {
-                                Text("Notifications")
+                                Text("notifications_label")
                                     .font(AppTypography.body)
                                 Spacer()
                                 Toggle("", isOn: $prefs.notificationsEnabled)
@@ -1145,7 +1145,7 @@ struct AthleteProfileSettingsView: View {
                             } label: {
                                 GlassCard(cornerRadius: AppTheme.Corners.md) {
                                     HStack {
-                                        Text("Reminder time")
+                                        Text("reminder_time_label")
                                             .font(AppTypography.body)
                                         Spacer()
                                         Text(reminderTimeString)
@@ -1161,11 +1161,11 @@ struct AthleteProfileSettingsView: View {
                     }
                     .padding(.horizontal, AppSpacing.lg)
 
-                    SectionHeader(title: "Account", actionTitle: nil, action: nil)
+                    SectionHeader(title: String(localized: "section_account"), actionTitle: nil, action: nil)
 
                     VStack(spacing: AppSpacing.md) {
-                        SecondaryButton(title: "Manage subscription") { }
-                        SecondaryButton(title: "Sign out") {
+                        SecondaryButton(title: String(localized: "manage_subscription")) { }
+                        SecondaryButton(title: String(localized: "sign_out")) {
                             appState.signOut()
                         }
                     }
@@ -1176,7 +1176,7 @@ struct AthleteProfileSettingsView: View {
                 .padding(.vertical, AppSpacing.lg)
             }
         }
-        .navigationTitle("Profile")
+        .navigationTitle("nav_profile")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showEditProfile) {
             EditProfileSheet(user: user, appState: appState, onDismiss: { showEditProfile = false })
@@ -1212,10 +1212,10 @@ struct EditProfileSheet: View {
             ZStack {
                 AppColors.background.ignoresSafeArea()
                 VStack(alignment: .leading, spacing: AppSpacing.xl) {
-                    Text("Name")
+                    Text("edit_profile_name_label")
                         .font(AppTypography.headline)
                         .foregroundColor(AppColors.textPrimary)
-                    TextField("Your name", text: $name)
+                    TextField("placeholder_your_name", text: $name)
                         .textContentType(.name)
                         .font(AppTypography.body)
                         .padding(.horizontal, AppSpacing.md)
@@ -1234,14 +1234,14 @@ struct EditProfileSheet: View {
                 .padding(.horizontal, AppSpacing.lg)
                 .padding(.top, AppSpacing.xl)
             }
-            .navigationTitle("Edit profile")
+            .navigationTitle("edit_profile_title")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onDismiss() }
+                    Button(String(localized: "button_cancel")) { onDismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }
+                    Button(String(localized: "button_save")) { save() }
                         .disabled(isSaving || name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
@@ -1296,11 +1296,11 @@ struct UnitsPickerSheet: View {
                     }
                 }
             }
-            .navigationTitle("Units")
+            .navigationTitle("nav_units")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { onDismiss() }
+                    Button(String(localized: "button_done")) { onDismiss() }
                 }
             }
         }
@@ -1318,13 +1318,13 @@ struct ReminderTimeSheet: View {
             ZStack {
                 AppColors.background.ignoresSafeArea()
                 VStack(spacing: AppSpacing.xl) {
-                    Text("Daily reminder for today’s workout")
+                    Text("reminder_daily_message")
                         .font(AppTypography.footnote)
                         .foregroundColor(AppColors.textSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
                     Stepper(value: $prefs.reminderHour, in: 5...22) {
-                        Text("Hour: \(prefs.reminderHour):00")
+                        Text(String(format: String(localized: "reminder_hour_format"), prefs.reminderHour))
                             .font(AppTypography.headline)
                     }
                     .padding(.horizontal, AppSpacing.lg)
@@ -1332,11 +1332,11 @@ struct ReminderTimeSheet: View {
                 }
                 .padding(.top, AppSpacing.xl)
             }
-            .navigationTitle("Reminder time")
+            .navigationTitle("nav_reminder_time")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { onDismiss() }
+                    Button(String(localized: "button_done")) { onDismiss() }
                 }
             }
         }

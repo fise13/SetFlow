@@ -511,7 +511,7 @@ struct WorkoutHeroCard: View {
                         Text(detail)
                             .font(AppTypography.footnote)
                             .foregroundColor(Color.white.opacity(0.9))
-                        Text("\(Int(progress * 100))% complete")
+                        Text(String(format: String(localized: "progress_complete_format"), Int(progress * 100)))
                             .font(AppTypography.caption)
                             .foregroundColor(Color.white.opacity(0.7))
                     }
