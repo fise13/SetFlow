@@ -247,10 +247,21 @@ struct WorkoutPlan: Identifiable, Hashable, Codable {
     }
 }
 
+struct WorkoutTemplate: Identifiable, Hashable, Codable {
+    let id: String
+    var name: String
+    var workoutTitle: String
+    var focus: String
+    var exercises: [Exercise]
+    var createdAt: Date
+}
+
 struct WorkoutLog: Identifiable, Hashable, Codable {
     let id: String
     var athleteId: String
     var workoutTitle: String
+    /// Source workout day id to disambiguate updated/duplicated workouts
+    var workoutDayId: String? = nil
     var date: Date
     var durationMinutes: Int
     var totalSets: Int

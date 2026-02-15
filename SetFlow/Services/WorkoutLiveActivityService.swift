@@ -23,7 +23,12 @@ enum WorkoutLiveActivityService {
         totalExercises: Int,
         currentSet: Int,
         setsForCurrentExercise: Int,
+        repsForCurrentExercise: Int,
+        weightForCurrentExercise: Double,
+        requiresWeight: Bool,
+        nextExerciseName: String?,
         completedSetsCount: Int,
+        restTotalSeconds: Int,
         totalVolume: Double
     ) {
         Task { @MainActor in
@@ -33,24 +38,30 @@ enum WorkoutLiveActivityService {
                 workoutTitle: workoutTitle,
                 totalSets: totalSets
             )
-            let state = WorkoutActivityAttributes.ContentState(
+            let state = makeState(
                 currentExerciseName: currentExerciseName,
                 currentExerciseIndex: currentExerciseIndex,
                 totalExercises: totalExercises,
                 currentSet: currentSet,
                 setsForCurrentExercise: setsForCurrentExercise,
+                repsForCurrentExercise: repsForCurrentExercise,
+                weightForCurrentExercise: weightForCurrentExercise,
+                requiresWeight: requiresWeight,
+                nextExerciseName: nextExerciseName,
                 completedSetsCount: completedSetsCount,
                 totalSetsCount: totalSets,
                 restRemaining: 0,
+                restTotalSeconds: max(0, restTotalSeconds),
                 mode: "active",
                 totalVolume: totalVolume
             )
-            try? Activity<WorkoutActivityAttributes>.request(
+            let created = try? Activity<WorkoutActivityAttributes>.request(
                 attributes: attrs,
                 content: .init(state: state, staleDate: nil),
                 pushType: nil
             )
-            activeActivityId = Activity<WorkoutActivityAttributes>.activities.first?.id
+            activeActivityId = created?.id
+            lastRestUpdate = .distantPast
         }
     }
 
@@ -61,22 +72,32 @@ enum WorkoutLiveActivityService {
         totalExercises: Int,
         currentSet: Int,
         setsForCurrentExercise: Int,
+        repsForCurrentExercise: Int,
+        weightForCurrentExercise: Double,
+        requiresWeight: Bool,
+        nextExerciseName: String?,
         completedSetsCount: Int,
         totalSetsCount: Int,
         restRemaining: Int,
+        restTotalSeconds: Int,
         totalVolume: Double
     ) {
         Task { @MainActor in
             guard let activity = activeActivity() else { return }
-            let state = WorkoutActivityAttributes.ContentState(
+            let state = makeState(
                 currentExerciseName: currentExerciseName,
                 currentExerciseIndex: currentExerciseIndex,
                 totalExercises: totalExercises,
                 currentSet: currentSet,
                 setsForCurrentExercise: setsForCurrentExercise,
+                repsForCurrentExercise: repsForCurrentExercise,
+                weightForCurrentExercise: weightForCurrentExercise,
+                requiresWeight: requiresWeight,
+                nextExerciseName: nextExerciseName,
                 completedSetsCount: completedSetsCount,
                 totalSetsCount: totalSetsCount,
                 restRemaining: restRemaining,
+                restTotalSeconds: restTotalSeconds,
                 mode: restRemaining > 0 ? "rest" : "active",
                 totalVolume: totalVolume
             )
@@ -91,22 +112,32 @@ enum WorkoutLiveActivityService {
         totalExercises: Int,
         currentSet: Int,
         setsForCurrentExercise: Int,
+        repsForCurrentExercise: Int,
+        weightForCurrentExercise: Double,
+        requiresWeight: Bool,
+        nextExerciseName: String?,
         completedSetsCount: Int,
         totalSetsCount: Int,
         restRemaining: Int,
+        restTotalSeconds: Int,
         totalVolume: Double
     ) {
         Task { @MainActor in
             guard let activity = activeActivity() else { return }
-            let state = WorkoutActivityAttributes.ContentState(
+            let state = makeState(
                 currentExerciseName: currentExerciseName,
                 currentExerciseIndex: currentExerciseIndex,
                 totalExercises: totalExercises,
                 currentSet: currentSet,
                 setsForCurrentExercise: setsForCurrentExercise,
+                repsForCurrentExercise: repsForCurrentExercise,
+                weightForCurrentExercise: weightForCurrentExercise,
+                requiresWeight: requiresWeight,
+                nextExerciseName: nextExerciseName,
                 completedSetsCount: completedSetsCount,
                 totalSetsCount: totalSetsCount,
                 restRemaining: restRemaining,
+                restTotalSeconds: restTotalSeconds,
                 mode: restRemaining > 0 ? "rest" : "active",
                 totalVolume: totalVolume
             )
@@ -121,9 +152,14 @@ enum WorkoutLiveActivityService {
         totalExercises: Int,
         currentSet: Int,
         setsForCurrentExercise: Int,
+        repsForCurrentExercise: Int,
+        weightForCurrentExercise: Double,
+        requiresWeight: Bool,
+        nextExerciseName: String?,
         completedSetsCount: Int,
         totalSetsCount: Int,
         restRemaining: Int,
+        restTotalSeconds: Int,
         totalVolume: Double
     ) {
         let now = Date()
@@ -131,15 +167,20 @@ enum WorkoutLiveActivityService {
         lastRestUpdate = now
         Task { @MainActor in
             guard let activity = activeActivity() else { return }
-            let state = WorkoutActivityAttributes.ContentState(
+            let state = makeState(
                 currentExerciseName: currentExerciseName,
                 currentExerciseIndex: currentExerciseIndex,
                 totalExercises: totalExercises,
                 currentSet: currentSet,
                 setsForCurrentExercise: setsForCurrentExercise,
+                repsForCurrentExercise: repsForCurrentExercise,
+                weightForCurrentExercise: weightForCurrentExercise,
+                requiresWeight: requiresWeight,
+                nextExerciseName: nextExerciseName,
                 completedSetsCount: completedSetsCount,
                 totalSetsCount: totalSetsCount,
                 restRemaining: restRemaining,
+                restTotalSeconds: restTotalSeconds,
                 mode: "rest",
                 totalVolume: totalVolume
             )
@@ -164,12 +205,19 @@ enum WorkoutLiveActivityService {
                 completedSetsCount: completedSetsCount,
                 totalSetsCount: totalSetsCount,
                 restRemaining: 0,
+                restTotalSeconds: 0,
+                restEndDate: nil,
                 mode: "completed",
+                requiresWeight: false,
+                repsForCurrentExercise: 0,
+                weightForCurrentExercise: 0,
+                nextExerciseName: nil,
                 totalVolume: totalVolume
             )
             await activity.update(ActivityContent(state: state, staleDate: nil))
-            await activity.end(nil, dismissalPolicy: .after(Date().addingTimeInterval(5)))
+            await activity.end(nil, dismissalPolicy: .immediate)
             activeActivityId = nil
+            lastRestUpdate = .distantPast
         }
     }
 
@@ -186,6 +234,7 @@ enum WorkoutLiveActivityService {
             await activity.end(nil, dismissalPolicy: .immediate)
         }
         activeActivityId = nil
+        lastRestUpdate = .distantPast
     }
 
     @MainActor
@@ -197,6 +246,45 @@ enum WorkoutLiveActivityService {
         let fallback = Activity<WorkoutActivityAttributes>.activities.first
         activeActivityId = fallback?.id
         return fallback
+    }
+
+    private static func makeState(
+        currentExerciseName: String,
+        currentExerciseIndex: Int,
+        totalExercises: Int,
+        currentSet: Int,
+        setsForCurrentExercise: Int,
+        repsForCurrentExercise: Int,
+        weightForCurrentExercise: Double,
+        requiresWeight: Bool,
+        nextExerciseName: String?,
+        completedSetsCount: Int,
+        totalSetsCount: Int,
+        restRemaining: Int,
+        restTotalSeconds: Int,
+        mode: String,
+        totalVolume: Double
+    ) -> WorkoutActivityAttributes.ContentState {
+        let clampedRest = max(0, restRemaining)
+        let clampedRestTotal = max(0, restTotalSeconds)
+        return WorkoutActivityAttributes.ContentState(
+            currentExerciseName: currentExerciseName,
+            currentExerciseIndex: currentExerciseIndex,
+            totalExercises: totalExercises,
+            currentSet: currentSet,
+            setsForCurrentExercise: setsForCurrentExercise,
+            completedSetsCount: completedSetsCount,
+            totalSetsCount: totalSetsCount,
+            restRemaining: clampedRest,
+            restTotalSeconds: clampedRestTotal,
+            restEndDate: clampedRest > 0 ? Date().addingTimeInterval(TimeInterval(clampedRest)) : nil,
+            mode: mode,
+            requiresWeight: requiresWeight,
+            repsForCurrentExercise: repsForCurrentExercise,
+            weightForCurrentExercise: weightForCurrentExercise,
+            nextExerciseName: nextExerciseName,
+            totalVolume: totalVolume
+        )
     }
 
 }

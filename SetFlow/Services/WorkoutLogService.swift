@@ -23,6 +23,7 @@ final class WorkoutLogService {
         let data: [String: Any] = [
             "athleteId": log.athleteId,
             "workoutTitle": log.workoutTitle,
+            "workoutDayId": log.workoutDayId as Any,
             "date": Timestamp(date: log.date),
             "durationMinutes": log.durationMinutes,
             "totalSets": log.totalSets,
@@ -84,6 +85,7 @@ final class WorkoutLogService {
             id: doc.documentID,
             athleteId: athleteId,
             workoutTitle: workoutTitle,
+            workoutDayId: data?["workoutDayId"] as? String,
             date: date,
             durationMinutes: durationMinutes,
             totalSets: totalSets,

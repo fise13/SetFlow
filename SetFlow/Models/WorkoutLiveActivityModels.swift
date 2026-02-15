@@ -27,8 +27,20 @@ public struct WorkoutActivityAttributes: ActivityAttributes {
         public var totalSetsCount: Int
         /// Rest seconds remaining (0 = not resting)
         public var restRemaining: Int
+        /// Total rest seconds for current rest segment
+        public var restTotalSeconds: Int
+        /// Rest countdown end date for precise lock screen timer rendering
+        public var restEndDate: Date?
         /// "active" | "rest" | "completed"
         public var mode: String
+        /// True when current exercise uses weight
+        public var requiresWeight: Bool
+        /// Target reps for current set context
+        public var repsForCurrentExercise: Int
+        /// Target weight for current set context
+        public var weightForCurrentExercise: Double
+        /// Optional next exercise name (shown while resting)
+        public var nextExerciseName: String?
         /// Total volume lifted so far (kg)
         public var totalVolume: Double
     }

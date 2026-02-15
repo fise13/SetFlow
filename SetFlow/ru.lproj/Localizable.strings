@@ -139,6 +139,8 @@
 "no_workout_today_message" = "Тренер не назначил тренировку на сегодня. Загляните завтра или на главной посмотрите неделю.";
 "no_workout_left_today_title" = "Тренировок не осталось";
 "no_workout_left_today_message" = "Вы завершили все тренировки на сегодня. Отличная работа.";
+"workout_completed_lock_title" = "Тренировка завершена";
+"workout_completed_lock_message" = "Повторно зайти в эту тренировку нельзя. Тренер добавит или обновит план, когда будет готов.";
 "nav_workout" = "Тренировка";
 
 /* Workout Detail */
@@ -267,8 +269,36 @@
 "coach_dashboard_sent_feedback" = "Отправили feedback";
 "coach_dashboard_none" = "В этой группе пока никого.";
 "coach_signals_subtitle" = "Ежедневные сигналы по всем атлетам";
+"coach_notifications_title" = "Уведомления";
+"coach_notifications_subtitle" = "События от атлетов и завершенные тренировки";
+"coach_notifications_empty" = "Новых уведомлений от атлетов нет.";
 "coach_full_athlete_list_title" = "Все атлеты";
 "coach_full_athlete_list_count" = "Всего: %d";
+"button_duplicate_workout" = "Дублировать тренировку";
+"button_copy_from_last_week" = "Копировать с прошлой недели";
+"button_copy_to_another_athlete" = "Копировать другому атлету";
+"button_save_workout_template" = "Сохранить как шаблон";
+"button_use_template" = "Использовать шаблон";
+"coach_plan_nav_title" = "План";
+"plan_menu_rename_plan" = "Переименовать план";
+"plan_menu_delete_week" = "Удалить неделю";
+"plan_empty_week_title" = "На этой неделе нет тренировок";
+"plan_empty_week_subtitle" = "Добавьте тренировочный день или скопируйте прошлую неделю.";
+"plan_context_edit" = "Редактировать";
+"plan_rename_title" = "Название плана";
+"plan_rename_placeholder" = "Введите название плана";
+"coach_action_done" = "Готово";
+"button_ok" = "ОК";
+"coach_copy_target_empty" = "Нет других атлетов для копирования этой тренировки.";
+"coach_templates_empty_title" = "Пока нет шаблонов";
+"coach_templates_empty_subtitle" = "Сохраните тренировку как шаблон, и она появится здесь.";
+"message_workout_duplicated" = "Тренировка успешно продублирована.";
+"message_template_saved" = "Шаблон сохранен.";
+"message_week_copied" = "Тренировки скопированы с прошлой недели.";
+"message_no_previous_week_to_copy" = "На прошлой неделе нет тренировок для копирования.";
+"message_workout_copied_to_athlete" = "Тренировка скопирована атлету %@.";
+"message_copy_failed" = "Не удалось скопировать тренировку. Попробуйте снова.";
+"message_template_applied" = "Шаблон добавлен в эту неделю.";
 "filter_active" = "Активные";
 "last_workout_volume_format" = "Тренировка: 2 дн. назад • Объём: 14 200 кг";
 "nav_dashboard" = "Главная";

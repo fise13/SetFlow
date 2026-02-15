@@ -161,6 +161,8 @@
 "no_workout_today_message" = "Your coach hasn't scheduled a session for today. Check back tomorrow or look at your week on Home.";
 "no_workout_left_today_title" = "No workouts left";
 "no_workout_left_today_message" = "You finished all workouts for today. Great job.";
+"workout_completed_lock_title" = "Workout completed";
+"workout_completed_lock_message" = "You can't re-enter this workout. Your coach will add or update your plan when ready.";
 "nav_workout" = "Workout";
 
 /* Workout Detail */
@@ -289,8 +291,36 @@
 "coach_dashboard_sent_feedback" = "Sent feedback";
 "coach_dashboard_none" = "No athletes in this group.";
 "coach_signals_subtitle" = "Daily coaching signals across all athletes";
+"coach_notifications_title" = "Notifications";
+"coach_notifications_subtitle" = "Athlete events and completed workouts";
+"coach_notifications_empty" = "No new athlete notifications.";
 "coach_full_athlete_list_title" = "All athletes";
 "coach_full_athlete_list_count" = "%d total";
+"button_duplicate_workout" = "Duplicate workout";
+"button_copy_from_last_week" = "Copy from last week";
+"button_copy_to_another_athlete" = "Copy to another athlete";
+"button_save_workout_template" = "Save workout as template";
+"button_use_template" = "Use template";
+"coach_plan_nav_title" = "Plan";
+"plan_menu_rename_plan" = "Rename plan";
+"plan_menu_delete_week" = "Delete week";
+"plan_empty_week_title" = "No workouts this week";
+"plan_empty_week_subtitle" = "Add a workout day or copy from previous week.";
+"plan_context_edit" = "Edit";
+"plan_rename_title" = "Plan name";
+"plan_rename_placeholder" = "Enter plan name";
+"coach_action_done" = "Done";
+"button_ok" = "OK";
+"coach_copy_target_empty" = "There are no other athletes to copy this workout to.";
+"coach_templates_empty_title" = "No templates yet";
+"coach_templates_empty_subtitle" = "Save a workout as template and it will appear here.";
+"message_workout_duplicated" = "Workout duplicated successfully.";
+"message_template_saved" = "Template saved.";
+"message_week_copied" = "Workouts copied from last week.";
+"message_no_previous_week_to_copy" = "No workouts found in the previous week.";
+"message_workout_copied_to_athlete" = "Workout copied to %@.";
+"message_copy_failed" = "Could not copy workout. Try again.";
+"message_template_applied" = "Template added to this week.";
 "filter_active" = "Active";
 "last_workout_volume_format" = "Last workout: 2d ago • Volume: 14,200 kg";
 "nav_dashboard" = "Dashboard";

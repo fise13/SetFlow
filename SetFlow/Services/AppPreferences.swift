@@ -48,6 +48,10 @@ final class AppPreferences: ObservableObject {
         static func coachFirstRunOnboardingSeen(userId: String) -> String {
             "app.preferences.onboarding.coach.\(userId)"
         }
+
+        static func coachWorkoutTemplates(userId: String) -> String {
+            "app.preferences.workoutTemplates.coach.\(userId)"
+        }
     }
 
     private let defaults = UserDefaults.standard
@@ -109,6 +113,25 @@ final class AppPreferences: ObservableObject {
             defaults.set(true, forKey: Keys.athleteFirstRunOnboardingSeen(userId: userId))
         case .coach:
             defaults.set(true, forKey: Keys.coachFirstRunOnboardingSeen(userId: userId))
+        }
+    }
+
+    func coachWorkoutTemplates(userId: String) -> [WorkoutTemplate] {
+        let key = Keys.coachWorkoutTemplates(userId: userId)
+        guard let data = defaults.data(forKey: key) else { return [] }
+        return (try? JSONDecoder().decode([WorkoutTemplate].self, from: data)) ?? []
+    }
+
+    func saveCoachWorkoutTemplate(userId: String, template: WorkoutTemplate) {
+        var templates = coachWorkoutTemplates(userId: userId)
+        templates.removeAll { $0.id == template.id }
+        templates.insert(template, at: 0)
+        if templates.count > 40 {
+            templates = Array(templates.prefix(40))
+        }
+        let key = Keys.coachWorkoutTemplates(userId: userId)
+        if let data = try? JSONEncoder().encode(templates) {
+            defaults.set(data, forKey: key)
         }
     }
 }

@@ -705,7 +705,7 @@ struct SignUpView: View {
         let nameToUse = displayName
         Task { @MainActor in
             do {
-                try await appState.authService.signUp(email: email, password: password)
+                try await appState.authService.signUp(email: email, password: password, displayName: nameToUse)
                 appState.pendingDisplayName = nameToUse
                 await appState.refetchCurrentUser()
                 appState.showSignUpSheet = false
@@ -729,7 +729,10 @@ struct RoleSelectionView: View {
     @State private var isCreatingCoach = false
 
     private var displayName: String {
-        appState.pendingDisplayName ?? appState.authService.currentFirebaseUser?.email?.components(separatedBy: "@").first ?? "User"
+        appState.pendingDisplayName
+        ?? appState.authService.currentFirebaseUser?.displayName
+        ?? appState.authService.currentFirebaseUser?.email?.components(separatedBy: "@").first
+        ?? "User"
     }
 
     var body: some View {
@@ -793,6 +796,7 @@ struct RoleSelectionView: View {
             defer { isCreatingCoach = false }
             do {
                 try await appState.userService.createUser(id: uid, name: displayName, role: .coach)
+                appState.pendingDisplayName = nil
                 await appState.refetchCurrentUser()
             } catch { }
         }
@@ -808,7 +812,10 @@ struct InviteCodeView: View {
     @State private var errorMessage: String?
 
     private var displayName: String {
-        appState.pendingDisplayName ?? appState.authService.currentFirebaseUser?.email?.components(separatedBy: "@").first ?? "Athlete"
+        appState.pendingDisplayName
+        ?? appState.authService.currentFirebaseUser?.displayName
+        ?? appState.authService.currentFirebaseUser?.email?.components(separatedBy: "@").first
+        ?? "Athlete"
     }
 
     /// Normalize to XXXX-XXXX (letters/numbers only, uppercase, max 8 chars).
@@ -902,6 +909,7 @@ struct InviteCodeView: View {
                     return
                 }
                 try await appState.userService.createUser(id: uid, name: displayName, role: .athlete, coachId: coachId)
+                appState.pendingDisplayName = nil
                 await appState.refetchCurrentUser()
             } catch {
                 errorMessage = AuthService.userFriendlyMessage(for: error)

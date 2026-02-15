@@ -106,7 +106,15 @@ struct AthleteTabRootView: View {
         }
     }
 
+    @ViewBuilder
     private var workoutTabEmptyView: some View {
+        let todayStart = Calendar.current.startOfDay(for: Date())
+        let nextWorkout = homeViewModel.upcomingWorkouts.first { day in
+            let dayStart = Calendar.current.startOfDay(for: day.date)
+            if dayStart > todayStart { return true }
+            if dayStart == todayStart { return !homeViewModel.isWorkoutLoggedToday(day) }
+            return false
+        }
         ZStack {
             AppColors.background.ignoresSafeArea()
             VStack(spacing: AppSpacing.xl) {
@@ -123,6 +131,14 @@ struct AthleteTabRootView: View {
                             .foregroundColor(AppColors.textSecondary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
+                        if let nextWorkout {
+                            NavigationLink {
+                                WorkoutDetailView(workoutDay: nextWorkout, athleteId: user.id)
+                            } label: {
+                                SecondaryButtonLabel(title: String(localized: "button_open_next_workout"), fullWidth: true)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                     .padding(.vertical, AppSpacing.xxl)
                 }
@@ -214,7 +230,8 @@ final class AthleteHomeViewModel: ObservableObject {
 
     var todayWorkout: WorkoutDay? {
         let today = Calendar.current.startOfDay(for: Date())
-        return upcomingWorkouts.first { Calendar.current.isDate($0.date, inSameDayAs: today) }
+        let todayDays = upcomingWorkouts.filter { Calendar.current.isDate($0.date, inSameDayAs: today) }
+        return todayDays.first(where: { !isWorkoutLoggedToday($0) }) ?? todayDays.first
     }
 
     /// Consecutive days with at least one workout, ending today or yesterday.
@@ -257,13 +274,7 @@ final class AthleteHomeViewModel: ObservableObject {
     /// Progress 0...1 for today's workout if it was logged, else 0.
     var todayProgress: Double {
         guard let today = todayWorkout else { return 0 }
-        let cal = Calendar.current
-        let hasLoggedToday = history.contains {
-            cal.isDate($0.date, inSameDayAs: Date())
-            && $0.workoutTitle == today.title
-            && $0.status != .missed
-        }
-        return hasLoggedToday ? 1 : 0
+        return isWorkoutLoggedToday(today) ? 1 : 0
     }
 
     @MainActor
@@ -277,7 +288,8 @@ final class AthleteHomeViewModel: ObservableObject {
             self?.plans = plans
             let upcoming = plans.flatMap { $0.days }.sorted { $0.date < $1.date }
             self?.upcomingWorkouts = upcoming
-            if let today = upcoming.first(where: { Calendar.current.isDate($0.date, inSameDayAs: Date()) }) {
+            let todayCandidates = upcoming.filter { Calendar.current.isDate($0.date, inSameDayAs: Date()) }
+            if let today = todayCandidates.first(where: { !(self?.isWorkoutLoggedToday($0) ?? false) }) ?? todayCandidates.first {
                 WatchConnectivityManager.shared.sendTodayWorkout(today)
                 let prefs = AppPreferences.shared
                 if prefs.notificationsEnabled {
@@ -297,9 +309,38 @@ final class AthleteHomeViewModel: ObservableObject {
 
     func isWorkoutLoggedToday(_ workout: WorkoutDay) -> Bool {
         let cal = Calendar.current
-        return history.contains {
-            cal.isDate($0.date, inSameDayAs: Date()) && $0.workoutTitle == workout.title
+        let todayLogs = history.filter {
+            cal.isDate($0.date, inSameDayAs: Date()) && $0.status != .missed
         }
+
+        if let matchedById = todayLogs
+            .filter({ $0.workoutDayId == workout.id })
+            .max(by: { $0.date < $1.date }) {
+            return !isPlanUpdated(after: matchedById.date, for: workout)
+        }
+
+        if let legacyMatch = todayLogs
+            .filter({ $0.workoutDayId == nil && $0.workoutTitle == workout.title })
+            .max(by: { $0.date < $1.date }) {
+            return !isPlanUpdated(after: legacyMatch.date, for: workout)
+        }
+
+        return false
+    }
+
+    private func isPlanUpdated(after logDate: Date, for workout: WorkoutDay) -> Bool {
+        let byId = plans.first { plan in
+            plan.days.contains(where: { $0.id == workout.id })
+        }?.lastUpdatedAt
+
+        let byLegacyMatch = plans.first { plan in
+            plan.days.contains {
+                Calendar.current.isDate($0.date, inSameDayAs: workout.date) && $0.title == workout.title
+            }
+        }?.lastUpdatedAt
+
+        guard let updatedAt = byId ?? byLegacyMatch else { return false }
+        return updatedAt > logDate
     }
 }
 
@@ -402,9 +443,18 @@ struct AthleteHomeView: View {
     private var todayHero: some View {
         Group {
             if let today = viewModel.todayWorkout {
-                NavigationLink {
-                    WorkoutDetailView(workoutDay: today, athleteId: viewModel.user.id)
-                } label: {
+                if viewModel.isWorkoutLoggedToday(today) {
+                    GlassCard {
+                        VStack(alignment: .leading, spacing: AppSpacing.md) {
+                            Text("no_workout_left_today_title")
+                                .font(AppTypography.headline)
+                            Text("no_workout_left_today_message")
+                                .font(AppTypography.body)
+                                .foregroundColor(AppColors.textSecondary)
+                        }
+                    }
+                    .padding(.horizontal, AppSpacing.lg)
+                } else {
                     WorkoutHeroCard(
                         title: today.title,
                         subtitle: String(format: String(localized: "today_focus_format"), today.focus.isEmpty ? String(localized: "workout_focus_not_set") : today.focus),
@@ -413,7 +463,6 @@ struct AthleteHomeView: View {
                     )
                     .padding(.horizontal, AppSpacing.lg)
                 }
-                .buttonStyle(.plain)
             } else {
                 GlassCard {
                     VStack(alignment: .leading, spacing: AppSpacing.md) {
@@ -446,27 +495,22 @@ struct AthleteHomeView: View {
         }
         return Group {
             if let workout = selectedWorkout {
-                NavigationLink {
-                    WorkoutDetailView(workoutDay: workout, athleteId: viewModel.user.id)
-                } label: {
-                    GlassCard(cornerRadius: AppTheme.Corners.md) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(workout.title)
-                                    .font(AppTypography.headline)
-                                Text(workout.focus.isEmpty ? String(localized: "workout_focus_not_set") : workout.focus)
-                                    .font(AppTypography.footnote)
-                                    .foregroundColor(AppColors.textSecondary)
-                            }
-                            Spacer()
-                            Text(String(format: String(localized: "exercises_count_format"), workout.exercises.count))
-                                .font(AppTypography.caption)
+                GlassCard(cornerRadius: AppTheme.Corners.md) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(workout.title)
+                                .font(AppTypography.headline)
+                            Text(workout.focus.isEmpty ? String(localized: "workout_focus_not_set") : workout.focus)
+                                .font(AppTypography.footnote)
                                 .foregroundColor(AppColors.textSecondary)
                         }
+                        Spacer()
+                        Text(String(format: String(localized: "exercises_count_format"), workout.exercises.count))
+                            .font(AppTypography.caption)
+                            .foregroundColor(AppColors.textSecondary)
                     }
-                    .padding(.horizontal, AppSpacing.lg)
                 }
-                .buttonStyle(.plain)
+                .padding(.horizontal, AppSpacing.lg)
             } else {
                 GlassCard(cornerRadius: AppTheme.Corners.md) {
                     Text("no_workout_selected_day")
@@ -632,6 +676,8 @@ struct WorkoutDetailView: View {
     @State private var showMakeupSheet = false
     @State private var selectedScheduleDate = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
     @State private var isApplyingSchedule = false
+    /// True when this workout was already completed today — no re-entry until coach adds/updates plan.
+    @State private var isCompletedLock = false
 
     private var totalSets: Int {
         workoutDay.exercises.reduce(0) { $0 + $1.sets }
@@ -643,7 +689,11 @@ struct WorkoutDetailView: View {
     }
 
     private var canStart: Bool {
-        !workoutDay.exercises.isEmpty
+        !workoutDay.exercises.isEmpty && !isCompletedLock
+    }
+
+    private var isToday: Bool {
+        Calendar.current.isDate(workoutDay.date, inSameDayAs: Date())
     }
 
     var body: some View {
@@ -651,9 +701,14 @@ struct WorkoutDetailView: View {
             AppColors.background.ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                    if isCompletedLock {
+                        completedLockBlock
+                    }
                     preflightBlock
-                    schedulingBlock
-                    if !workoutDay.exercises.isEmpty {
+                    if !isCompletedLock {
+                        schedulingBlock
+                    }
+                    if !workoutDay.exercises.isEmpty && !isCompletedLock {
                         SectionHeader(title: String(localized: "section_exercises"), actionTitle: nil, action: nil)
                         exercisesList
                     }
@@ -661,9 +716,12 @@ struct WorkoutDetailView: View {
                 }
                 .padding(.vertical, AppSpacing.lg)
             }
-            startButtonOverlay
+            if !isCompletedLock {
+                startButtonOverlay
+            }
         }
         .navigationTitle("nav_workout")
+        .onAppear { checkCompletedLock() }
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showAllExercises) {
             NavigationStack {
@@ -683,6 +741,62 @@ struct WorkoutDetailView: View {
                 confirmTitle: String(localized: "schedule_makeup_confirm"),
                 action: { createMakeupSession(on: selectedScheduleDate) }
             )
+        }
+    }
+
+    private var completedLockBlock: some View {
+        GlassCard(cornerRadius: AppTheme.Corners.lg) {
+            VStack(spacing: AppSpacing.md) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 44))
+                    .foregroundColor(AppColors.success)
+                Text("workout_completed_lock_title")
+                    .font(AppTypography.title2)
+                Text("workout_completed_lock_message")
+                    .font(AppTypography.footnote)
+                    .foregroundColor(AppColors.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(AppSpacing.lg)
+        }
+        .padding(.horizontal, AppSpacing.lg)
+    }
+
+    private func checkCompletedLock() {
+        guard isToday else { return }
+        Task {
+            let logs = (try? await appState.logService.logsForAthlete(athleteId: athleteId, limit: 14)) ?? []
+            let plans = (try? await appState.planService.plansForAthlete(athleteId: athleteId)) ?? []
+            let cal = Calendar.current
+            let todayLogs = logs.filter {
+                cal.isDate($0.date, inSameDayAs: Date()) && $0.status != .missed
+            }
+
+            let matchedById = todayLogs
+                .filter { $0.workoutDayId == workoutDay.id }
+                .max(by: { $0.date < $1.date })
+
+            let legacyMatch = todayLogs
+                .filter { $0.workoutDayId == nil && $0.workoutTitle == workoutDay.title }
+                .max(by: { $0.date < $1.date })
+
+            let latest = matchedById ?? legacyMatch
+            let planUpdate = plans.first {
+                $0.days.contains(where: { $0.id == workoutDay.id })
+            }?.lastUpdatedAt
+
+            let found: Bool
+            if let latest {
+                if let planUpdate, planUpdate > latest.date {
+                    found = false
+                } else {
+                    found = true
+                }
+            } else {
+                found = false
+            }
+            await MainActor.run { isCompletedLock = found }
         }
     }
 
@@ -870,6 +984,7 @@ struct WorkoutDetailView: View {
                 id: "temp-\(UUID().uuidString)",
                 athleteId: athleteId,
                 workoutTitle: workoutDay.title,
+                workoutDayId: workoutDay.id,
                 date: Date(),
                 durationMinutes: 0,
                 totalSets: 0,
@@ -971,12 +1086,14 @@ final class LiveWorkoutViewModel: ObservableObject {
     @Published var currentSet: Int = 1
     @Published var isResting: Bool = false
     @Published var restRemaining: Int = 60
+    @Published var restTotalSeconds: Int = 60
     @Published var completedSetsCount: Int = 0
     @Published var totalVolume: Double = 0
     @Published var workoutStartTime: Date = Date()
     
     private var restTimer: Timer?
     private var restIsBetweenExercisesInternal: Bool = false
+    private var restEndsAt: Date?
     
     let workoutDay: WorkoutDay
 
@@ -989,6 +1106,7 @@ final class LiveWorkoutViewModel: ObservableObject {
     
     init(workoutDay: WorkoutDay) {
         self.workoutDay = workoutDay
+        restorePersistedStateIfAvailable()
     }
     
     var currentExercise: Exercise? {
@@ -1016,6 +1134,12 @@ final class LiveWorkoutViewModel: ObservableObject {
     var setsRemaining: Int {
         totalSetsCount - completedSetsCount
     }
+
+    var nextExerciseName: String? {
+        let nextIndex = currentExerciseIndex + 1
+        guard workoutDay.exercises.indices.contains(nextIndex) else { return nil }
+        return workoutDay.exercises[nextIndex].name
+    }
     
     @MainActor
     func doneSet() {
@@ -1031,6 +1155,7 @@ final class LiveWorkoutViewModel: ObservableObject {
                 startRest(afterRest: { [weak self] in self?.advanceToNextExercise() })
             } else {
                 currentExerciseIndex += 1
+                clearPersistedState()
                 onComplete?()
             }
         } else {
@@ -1038,41 +1163,49 @@ final class LiveWorkoutViewModel: ObservableObject {
             restIsBetweenExercisesInternal = false
             startRest(afterRest: { })
         }
+        savePersistedState()
     }
     
     @MainActor
     private func startRest(afterRest: @escaping () -> Void) {
         guard let ex = currentExercise else {
             isResting = false
+            restEndsAt = nil
+            savePersistedState()
             afterRest()
             return
         }
         isResting = true
         restRemaining = ex.restSeconds
+        restTotalSeconds = ex.restSeconds
+        restEndsAt = Date().addingTimeInterval(TimeInterval(restRemaining))
         onSetDone?()
-        restTimer?.invalidate()
-        restTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.tickRest(afterRest: afterRest)
-            }
-        }
-        RunLoop.main.add(restTimer!, forMode: .common)
+        startRestTimer(afterRest: afterRest)
+        savePersistedState()
     }
     
     @MainActor
     private func tickRest(afterRest: @escaping () -> Void) {
-        restRemaining -= 1
+        if let end = restEndsAt {
+            restRemaining = max(0, Int(ceil(end.timeIntervalSinceNow)))
+        } else {
+            restRemaining = max(0, restRemaining - 1)
+        }
         onRestUpdate?()
         if restRemaining <= 3, restRemaining > 0 {
-            HapticManager.impact()
+            HapticManager.countdownWarning()
+            HapticManager.playCountdownTickSound()
         }
         if restRemaining <= 0 {
             restTimer?.invalidate()
             restTimer = nil
             isResting = false
+            restEndsAt = nil
             HapticManager.success()
+            HapticManager.playCountdownEndSound()
             afterRest()
         }
+        savePersistedState()
     }
     
     @MainActor
@@ -1080,18 +1213,24 @@ final class LiveWorkoutViewModel: ObservableObject {
         restTimer?.invalidate()
         restTimer = nil
         isResting = false
+        restRemaining = 0
+        restEndsAt = nil
         if restIsBetweenExercisesInternal {
             advanceToNextExercise()
         } else {
             onSetDone?()
         }
+        savePersistedState()
     }
 
     @MainActor
     func addRestSeconds(_ seconds: Int) {
         guard isResting else { return }
         restRemaining = min(300, restRemaining + seconds)
+        restTotalSeconds = min(300, restTotalSeconds + seconds)
+        restEndsAt = Date().addingTimeInterval(TimeInterval(restRemaining))
         onRestUpdate?()
+        savePersistedState()
     }
     
     @MainActor
@@ -1099,6 +1238,7 @@ final class LiveWorkoutViewModel: ObservableObject {
         currentExerciseIndex += 1
         currentSet = 1
         onExerciseChange?()
+        savePersistedState()
     }
     
     func buildLog(athleteId: String) -> WorkoutLog {
@@ -1115,6 +1255,7 @@ final class LiveWorkoutViewModel: ObservableObject {
             id: "temp-\(UUID().uuidString)",
             athleteId: athleteId,
             workoutTitle: workoutDay.title,
+            workoutDayId: workoutDay.id,
             date: Date(),
             durationMinutes: durationMinutes,
             totalSets: completedSetsCount,
@@ -1123,11 +1264,130 @@ final class LiveWorkoutViewModel: ObservableObject {
             exerciseFeedbacks: feedbacks
         )
     }
+
+    @MainActor
+    func resumeIfNeeded() {
+        guard isResting else {
+            return
+        }
+        if restEndsAt == nil, restRemaining > 0 {
+            restEndsAt = Date().addingTimeInterval(TimeInterval(restRemaining))
+        }
+        let afterRest: () -> Void = { [weak self] in
+            guard let self else { return }
+            if self.restIsBetweenExercisesInternal {
+                self.advanceToNextExercise()
+            } else {
+                self.onSetDone?()
+            }
+        }
+        startRestTimer(afterRest: afterRest)
+        tickRest(afterRest: afterRest)
+    }
+
+    @MainActor
+    func syncRestStateWithClock() {
+        guard isResting else { return }
+        if let end = restEndsAt {
+            restRemaining = max(0, Int(ceil(end.timeIntervalSinceNow)))
+            if restRemaining <= 0 {
+                isResting = false
+                restTimer?.invalidate()
+                restTimer = nil
+                restEndsAt = nil
+                if restIsBetweenExercisesInternal {
+                    advanceToNextExercise()
+                } else {
+                    onSetDone?()
+                }
+            } else {
+                onRestUpdate?()
+            }
+        }
+        savePersistedState()
+    }
+
+    static func clearPersistedState(for workoutDayId: String?) {
+        guard let workoutDayId, !workoutDayId.isEmpty else { return }
+        UserDefaults.standard.removeObject(forKey: persistedKey(for: workoutDayId))
+    }
+
+    // MARK: - Persistence
+
+    private struct PersistedLiveState: Codable {
+        let workoutDayId: String
+        let currentExerciseIndex: Int
+        let currentSet: Int
+        let isResting: Bool
+        let restRemaining: Int
+        let restTotalSeconds: Int
+        let restIsBetweenExercises: Bool
+        let restEndsAt: Date?
+        let completedSetsCount: Int
+        let totalVolume: Double
+        let workoutStartTime: Date
+    }
+
+    private static func persistedKey(for workoutDayId: String) -> String {
+        "liveWorkout.state.\(workoutDayId)"
+    }
+
+    private func savePersistedState() {
+        let state = PersistedLiveState(
+            workoutDayId: workoutDay.id,
+            currentExerciseIndex: currentExerciseIndex,
+            currentSet: currentSet,
+            isResting: isResting,
+            restRemaining: restRemaining,
+            restTotalSeconds: restTotalSeconds,
+            restIsBetweenExercises: restIsBetweenExercisesInternal,
+            restEndsAt: restEndsAt,
+            completedSetsCount: completedSetsCount,
+            totalVolume: totalVolume,
+            workoutStartTime: workoutStartTime
+        )
+        if let data = try? JSONEncoder().encode(state) {
+            UserDefaults.standard.set(data, forKey: Self.persistedKey(for: workoutDay.id))
+        }
+    }
+
+    private func restorePersistedStateIfAvailable() {
+        guard let data = UserDefaults.standard.data(forKey: Self.persistedKey(for: workoutDay.id)),
+              let state = try? JSONDecoder().decode(PersistedLiveState.self, from: data) else { return }
+        currentExerciseIndex = min(max(0, state.currentExerciseIndex), max(0, workoutDay.exercises.count - 1))
+        currentSet = max(1, state.currentSet)
+        isResting = state.isResting
+        restRemaining = max(0, state.restRemaining)
+        restTotalSeconds = max(0, state.restTotalSeconds)
+        restIsBetweenExercisesInternal = state.restIsBetweenExercises
+        restEndsAt = state.restEndsAt
+        completedSetsCount = max(0, state.completedSetsCount)
+        totalVolume = max(0, state.totalVolume)
+        workoutStartTime = state.workoutStartTime
+    }
+
+    private func clearPersistedState() {
+        UserDefaults.standard.removeObject(forKey: Self.persistedKey(for: workoutDay.id))
+    }
+
+    @MainActor
+    private func startRestTimer(afterRest: @escaping () -> Void) {
+        restTimer?.invalidate()
+        restTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.tickRest(afterRest: afterRest)
+            }
+        }
+        if let restTimer {
+            RunLoop.main.add(restTimer, forMode: .common)
+        }
+    }
 }
 
 struct LiveWorkoutView: View {
     @ObservedObject var viewModel: LiveWorkoutViewModel
     @ObservedObject private var prefs = AppPreferences.shared
+    @Environment(\.scenePhase) private var scenePhase
     let athleteId: String
     @State private var showSummary = false
     @State private var showEndWorkoutConfirmation = false
@@ -1148,7 +1408,12 @@ struct LiveWorkoutView: View {
                 totalExercises: viewModel.workoutDay.exercises.count,
                 currentSet: viewModel.currentSet,
                 setsForCurrentExercise: ex.sets,
+                repsForCurrentExercise: ex.reps,
+                weightForCurrentExercise: ex.weight,
+                requiresWeight: ex.requiresWeight,
+                nextExerciseName: viewModel.nextExerciseName,
                 completedSetsCount: viewModel.completedSetsCount,
+                restTotalSeconds: viewModel.restTotalSeconds,
                 totalVolume: viewModel.totalVolume
             )
         }
@@ -1163,9 +1428,14 @@ struct LiveWorkoutView: View {
                 totalExercises: viewModel.workoutDay.exercises.count,
                 currentSet: viewModel.currentSet,
                 setsForCurrentExercise: ex.sets,
+                repsForCurrentExercise: ex.reps,
+                weightForCurrentExercise: ex.weight,
+                requiresWeight: ex.requiresWeight,
+                nextExerciseName: viewModel.nextExerciseName,
                 completedSetsCount: viewModel.completedSetsCount,
                 totalSetsCount: viewModel.totalSetsCount,
                 restRemaining: viewModel.restRemaining,
+                restTotalSeconds: viewModel.restTotalSeconds,
                 totalVolume: viewModel.totalVolume
             )
         }
@@ -1180,9 +1450,14 @@ struct LiveWorkoutView: View {
                 totalExercises: viewModel.workoutDay.exercises.count,
                 currentSet: viewModel.currentSet,
                 setsForCurrentExercise: ex.sets,
+                repsForCurrentExercise: ex.reps,
+                weightForCurrentExercise: ex.weight,
+                requiresWeight: ex.requiresWeight,
+                nextExerciseName: viewModel.nextExerciseName,
                 completedSetsCount: viewModel.completedSetsCount,
                 totalSetsCount: viewModel.totalSetsCount,
                 restRemaining: viewModel.restRemaining,
+                restTotalSeconds: viewModel.restTotalSeconds,
                 totalVolume: viewModel.totalVolume
             )
         }
@@ -1197,9 +1472,14 @@ struct LiveWorkoutView: View {
                 totalExercises: viewModel.workoutDay.exercises.count,
                 currentSet: viewModel.currentSet,
                 setsForCurrentExercise: ex.sets,
+                repsForCurrentExercise: ex.reps,
+                weightForCurrentExercise: ex.weight,
+                requiresWeight: ex.requiresWeight,
+                nextExerciseName: viewModel.nextExerciseName,
                 completedSetsCount: viewModel.completedSetsCount,
                 totalSetsCount: viewModel.totalSetsCount,
                 restRemaining: viewModel.restRemaining,
+                restTotalSeconds: viewModel.restTotalSeconds,
                 totalVolume: viewModel.totalVolume
             )
         }
@@ -1218,6 +1498,16 @@ struct LiveWorkoutView: View {
     private func endLiveActivityIfNeeded() {
         if #available(iOS 16.2, *) {
             WorkoutLiveActivityService.endIfNeeded()
+        }
+    }
+
+    private func syncLiveActivityCurrentState() {
+        if viewModel.isResting {
+            updateLiveActivityRest()
+        } else if viewModel.isWorkoutComplete {
+            completeLiveActivity()
+        } else {
+            updateLiveActivityExerciseChange()
         }
     }
 
@@ -1263,11 +1553,13 @@ struct LiveWorkoutView: View {
         .navigationTitle("nav_live")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            startLiveActivityIfNeeded()
             viewModel.onSetDone = updateLiveActivitySetDone
             viewModel.onExerciseChange = updateLiveActivityExerciseChange
             viewModel.onRestUpdate = updateLiveActivityRest
             viewModel.onComplete = completeLiveActivity
+            viewModel.resumeIfNeeded()
+            startLiveActivityIfNeeded()
+            syncLiveActivityCurrentState()
         }
         .onDisappear {
             viewModel.onSetDone = nil
@@ -1275,6 +1567,13 @@ struct LiveWorkoutView: View {
             viewModel.onRestUpdate = nil
             viewModel.onComplete = nil
             endLiveActivityIfNeeded()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                viewModel.syncRestStateWithClock()
+                syncLiveActivityCurrentState()
+            }
+            // Do not end Live Activity on .background — it should stay in Dynamic Island / Lock Screen
         }
         .navigationDestination(isPresented: $showSummary) {
             WorkoutSummaryView(log: viewModel.buildLog(athleteId: athleteId))
@@ -1604,6 +1903,7 @@ struct WorkoutSummaryView: View {
             id: log.id,
             athleteId: log.athleteId,
             workoutTitle: log.workoutTitle,
+            workoutDayId: log.workoutDayId,
             date: log.date,
             durationMinutes: log.durationMinutes,
             totalSets: log.totalSets,
@@ -1619,6 +1919,7 @@ struct WorkoutSummaryView: View {
         Task { @MainActor in
             do {
                 try await service.saveLog(logToSave)
+                LiveWorkoutViewModel.clearPersistedState(for: logToSave.workoutDayId)
                 if let athlete = athleteUser,
                    let coachId = athlete.coachId {
                     try? await coachRequestService.sendWorkoutCompleted(

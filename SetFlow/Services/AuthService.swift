@@ -34,8 +34,16 @@ final class AuthService: ObservableObject {
         _ = try await Auth.auth().signIn(withEmail: email, password: password)
     }
 
-    func signUp(email: String, password: String) async throws {
-        _ = try await Auth.auth().createUser(withEmail: email, password: password)
+    func signUp(email: String, password: String, displayName: String? = nil) async throws {
+        let result = try await Auth.auth().createUser(withEmail: email, password: password)
+        if let displayName, !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let changeRequest = result.user.createProfileChangeRequest()
+            changeRequest.displayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+            try await changeRequest.commitChanges()
+            await MainActor.run {
+                self.currentFirebaseUser = Auth.auth().currentUser
+            }
+        }
     }
 
     func signInAnonymously() async throws {

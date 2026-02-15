@@ -49,8 +49,15 @@ final class AppState: ObservableObject {
             if let user {
                 try? await userService.updateLastSeen(userId: uid)
                 var updated = user
+                let authDisplayName = firebaseUser?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let preferredName = pendingDisplayName ?? authDisplayName
+                if let preferredName, !preferredName.isEmpty, preferredName != updated.name {
+                    try? await userService.updateUser(id: uid, name: preferredName)
+                    updated.name = preferredName
+                }
                 updated.lastSeenAt = Date()
                 currentUser = updated
+                pendingDisplayName = nil
             } else {
                 currentUser = nil
             }
@@ -67,10 +74,20 @@ final class AppState: ObservableObject {
         guard let uid = authService.uid else { return }
         do {
             let fetched = try await userService.getUser(id: uid)
-            if fetched != nil {
+            if var fetched = fetched {
                 try? await userService.updateLastSeen(userId: uid)
+                let authDisplayName = authService.currentFirebaseUser?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let preferredName = pendingDisplayName ?? authDisplayName
+                if let preferredName, !preferredName.isEmpty, preferredName != fetched.name {
+                    try? await userService.updateUser(id: uid, name: preferredName)
+                    fetched.name = preferredName
+                }
+                fetched.lastSeenAt = Date()
+                currentUser = fetched
+                pendingDisplayName = nil
+            } else {
+                currentUser = nil
             }
-            currentUser = fetched
             needsProfileSetup = (currentUser == nil)
         } catch {
             currentUser = nil

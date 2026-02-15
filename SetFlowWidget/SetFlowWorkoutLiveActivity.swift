@@ -43,6 +43,7 @@ struct SetFlowWorkoutLiveActivity: Widget {
             } minimal: {
                 minimalView(context: context)
             }
+            .keylineTint(keylineColor(for: context.state.mode))
         }
     }
 
@@ -67,8 +68,17 @@ struct SetFlowWorkoutLiveActivity: Widget {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     Spacer()
-                    Text(String(format: String(localized: "rest_seconds_format"), state.restRemaining))
-                        .font(.title2.bold().monospacedDigit())
+                    Text(restProgressPercentText(state: state))
+                        .font(.subheadline.bold().monospacedDigit())
+                }
+                ProgressView(value: restProgressValue(state: state), total: 1.0)
+                    .progressViewStyle(.linear)
+                    .tint(.orange)
+                if let next = state.nextExerciseName, !next.isEmpty {
+                    Text("\(String(localized: "live_activity_next_exercise")): \(next)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
                 }
             } else if state.mode == "completed" {
                 HStack {
@@ -89,6 +99,18 @@ struct SetFlowWorkoutLiveActivity: Widget {
                         .font(.subheadline.monospacedDigit())
                         .foregroundColor(.secondary)
                 }
+                HStack(spacing: 8) {
+                    Text(exercisePrescription(state: state))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    if state.totalVolume > 0 {
+                        Text("•")
+                            .foregroundColor(.secondary)
+                        Text(volumeFormatted(state.totalVolume))
+                            .font(.caption.monospacedDigit())
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
         }
         .padding()
@@ -102,7 +124,7 @@ struct SetFlowWorkoutLiveActivity: Widget {
             Text(context.attributes.workoutTitle)
                 .font(.caption)
                 .foregroundColor(.secondary)
-            Text(state.currentExerciseName)
+            Text(state.mode == "rest" ? String(localized: "live_activity_rest") : state.currentExerciseName)
                 .font(.subheadline.bold())
                 .lineLimit(1)
         }
@@ -116,6 +138,11 @@ struct SetFlowWorkoutLiveActivity: Widget {
             Text(String(localized: "live_stat_sets"))
                 .font(.caption2)
                 .foregroundColor(.secondary)
+            if state.mode != "completed" && state.totalVolume > 0 {
+                Text(volumeFormatted(state.totalVolume))
+                    .font(.caption2.monospacedDigit())
+                    .foregroundColor(.secondary)
+            }
         }
     }
 
@@ -123,9 +150,15 @@ struct SetFlowWorkoutLiveActivity: Widget {
     private func expandedCenterView(context: ActivityViewContext<WorkoutActivityAttributes>) -> some View {
         let state = context.state
         if state.mode == "rest" {
-            Text(String(format: String(localized: "rest_seconds_format"), state.restRemaining))
-                .font(.system(size: 32, weight: .bold, design: .rounded))
-                .monospacedDigit()
+            VStack(spacing: 6) {
+                Text(restProgressPercentText(state: state))
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                ProgressView(value: restProgressValue(state: state), total: 1.0)
+                    .progressViewStyle(.linear)
+                    .tint(.orange)
+                    .frame(maxWidth: 140)
+            }
         } else if state.mode == "completed" {
             HStack {
                 Image(systemName: "checkmark.circle.fill")
@@ -134,17 +167,34 @@ struct SetFlowWorkoutLiveActivity: Widget {
                     .font(.subheadline.bold())
             }
         } else {
-            Text(String(localized: "live_activity_active"))
-                .font(.caption)
-                .foregroundColor(.secondary)
+            VStack(spacing: 2) {
+                Text(String(format: String(localized: "set_progress_format"), state.currentSet, state.setsForCurrentExercise))
+                    .font(.subheadline.bold().monospacedDigit())
+                Text(exercisePrescription(state: state))
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
         }
     }
 
     private func expandedBottomView(context: ActivityViewContext<WorkoutActivityAttributes>) -> some View {
         let state = context.state
-        return Text(String(format: String(localized: "exercise_progress_format"), state.currentExerciseIndex, state.totalExercises))
-            .font(.caption2)
-            .foregroundColor(.secondary)
+        return VStack(spacing: 2) {
+            Text(String(format: String(localized: "exercise_progress_format"), state.currentExerciseIndex, state.totalExercises))
+                .font(.caption2)
+                .foregroundColor(.secondary)
+            if state.mode == "rest", let next = state.nextExerciseName, !next.isEmpty {
+                Text("\(String(localized: "live_activity_next_exercise")): \(next)")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            } else {
+                Text(exercisePrescription(state: state))
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+        }
     }
 
     // MARK: - Dynamic Island Compact
@@ -152,7 +202,7 @@ struct SetFlowWorkoutLiveActivity: Widget {
     private func compactLeadingView(context: ActivityViewContext<WorkoutActivityAttributes>) -> some View {
         let state = context.state
         return HStack(spacing: 4) {
-            Image(systemName: "figure.strengthtraining.traditional")
+            Image(systemName: state.mode == "rest" ? "pause.circle.fill" : "figure.strengthtraining.traditional")
                 .font(.caption)
             Text("\(state.completedSetsCount)/\(state.totalSetsCount)")
                 .font(.subheadline.bold().monospacedDigit())
@@ -163,15 +213,13 @@ struct SetFlowWorkoutLiveActivity: Widget {
     private func compactTrailingView(context: ActivityViewContext<WorkoutActivityAttributes>) -> some View {
         let state = context.state
         if state.mode == "rest" {
-            Text(String(format: String(localized: "rest_seconds_format"), state.restRemaining))
-                .font(.subheadline.bold().monospacedDigit())
+            restProgressPill(state: state)
         } else if state.mode == "completed" {
             Image(systemName: "checkmark.circle.fill")
                 .font(.caption)
         } else {
-            Text(state.currentExerciseName)
-                .font(.caption)
-                .lineLimit(1)
+            Text(String(format: String(localized: "set_progress_format"), state.currentSet, state.setsForCurrentExercise))
+                .font(.caption.bold().monospacedDigit())
         }
     }
 
@@ -179,11 +227,72 @@ struct SetFlowWorkoutLiveActivity: Widget {
     private func minimalView(context: ActivityViewContext<WorkoutActivityAttributes>) -> some View {
         let state = context.state
         if state.mode == "rest" {
-            Text(String(format: String(localized: "rest_seconds_format"), state.restRemaining))
-                .font(.caption.bold().monospacedDigit())
+            Circle()
+                .trim(from: 0, to: CGFloat(restProgressValue(state: state)))
+                .stroke(Color.orange, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                .frame(width: 14, height: 14)
+                .rotationEffect(.degrees(-90))
+        } else if state.mode == "completed" {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.caption)
+                .foregroundColor(.green)
         } else {
             Image(systemName: "figure.strengthtraining.traditional")
                 .font(.caption)
+        }
+    }
+
+    private func restProgressPill(state: WorkoutActivityAttributes.ContentState) -> some View {
+        ZStack(alignment: .leading) {
+            Capsule(style: .continuous)
+                .fill(Color.secondary.opacity(0.25))
+                .frame(width: 28, height: 10)
+            Capsule(style: .continuous)
+                .fill(Color.orange)
+                .frame(width: 28 * CGFloat(restProgressValue(state: state)), height: 10)
+        }
+    }
+
+    /// 0 = rest just started, 1 = rest over (bar fills as time passes).
+    private func restProgressValue(state: WorkoutActivityAttributes.ContentState) -> Double {
+        let total = max(1, state.restTotalSeconds)
+        let remaining: Int
+        if let end = state.restEndDate, end > Date() {
+            remaining = Int(ceil(end.timeIntervalSinceNow))
+        } else {
+            remaining = max(0, state.restRemaining)
+        }
+        let elapsed = total - remaining
+        return min(1.0, max(0.0, Double(elapsed) / Double(total)))
+    }
+
+    private func restProgressPercentText(state: WorkoutActivityAttributes.ContentState) -> String {
+        let percent = Int(restProgressValue(state: state) * 100)
+        return "\(percent)%"
+    }
+
+    private func volumeFormatted(_ kg: Double) -> String {
+        if kg >= 1000 {
+            return String(format: "%.1ft", kg / 1000)
+        }
+        return "\(Int(kg)) kg"
+    }
+
+    private func exercisePrescription(state: WorkoutActivityAttributes.ContentState) -> String {
+        if state.requiresWeight {
+            return "\(state.repsForCurrentExercise)x • \(Int(state.weightForCurrentExercise)) kg"
+        }
+        return "\(state.repsForCurrentExercise)x"
+    }
+
+    private func keylineColor(for mode: String) -> Color {
+        switch mode {
+        case "rest":
+            return .orange
+        case "completed":
+            return .green
+        default:
+            return .blue
         }
     }
 }

@@ -2,6 +2,9 @@ import SwiftUI
 #if canImport(UIKit)
 import UIKit
 #endif
+#if canImport(AudioToolbox)
+import AudioToolbox
+#endif
 
 // MARK: - Haptics
 
@@ -24,6 +27,28 @@ enum HapticManager {
         #if os(iOS)
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.success)
+        #endif
+    }
+
+    /// Stronger warning pulse for final countdown seconds.
+    static func countdownWarning() {
+        #if os(iOS)
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.warning)
+        #endif
+    }
+
+    /// Short tick sound for 3..1 countdown.
+    static func playCountdownTickSound() {
+        #if canImport(AudioToolbox)
+        AudioServicesPlaySystemSound(1104)
+        #endif
+    }
+
+    /// End-rest chime to signal "go".
+    static func playCountdownEndSound() {
+        #if canImport(AudioToolbox)
+        AudioServicesPlaySystemSound(1114)
         #endif
     }
 }

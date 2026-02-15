@@ -347,6 +347,7 @@ struct CoachDashboardView: View {
 struct CoachSignalsView: View {
     @ObservedObject var appState: AppState
     @State private var athletes: [User] = []
+    @State private var requests: [CoachRequest] = []
     @State private var trainedToday: [User] = []
     @State private var missedToday: [User] = []
     @State private var inactiveAthletes: [User] = []
@@ -357,6 +358,12 @@ struct CoachSignalsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                SectionHeader(
+                    title: String(localized: "coach_notifications_title"),
+                    subtitle: String(localized: "coach_notifications_subtitle")
+                )
+                notificationsSection
+
                 SectionHeader(
                     title: String(localized: "coach_dashboard_signals_title"),
                     subtitle: String(localized: "coach_signals_subtitle")
@@ -467,12 +474,53 @@ struct CoachSignalsView: View {
         }
     }
 
+    private var notificationsSection: some View {
+        Group {
+            if isLoading {
+                SkeletonCard()
+            } else if requests.isEmpty {
+                GlassCard(cornerRadius: AppTheme.Corners.md) {
+                    Text("coach_notifications_empty")
+                        .font(AppTypography.footnote)
+                        .foregroundColor(AppColors.textSecondary)
+                }
+            } else {
+                VStack(spacing: AppSpacing.sm) {
+                    ForEach(Array(requests.prefix(8))) { req in
+                        GlassCard(cornerRadius: AppTheme.Corners.md) {
+                            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                                if req.type == "workout_completed" {
+                                    Text(String(format: String(localized: "athlete_completed_workout_title"), req.athleteName))
+                                        .font(AppTypography.headline)
+                                    Text(String(format: String(localized: "athlete_completed_workout_subtitle"), req.workoutTitle ?? "Workout", req.rating ?? 0))
+                                        .font(AppTypography.footnote)
+                                        .foregroundColor(AppColors.textSecondary)
+                                } else {
+                                    Text(String(format: String(localized: "athlete_request_workout_title"), req.athleteName))
+                                        .font(AppTypography.headline)
+                                    Text("athlete_request_workout_subtitle")
+                                        .font(AppTypography.footnote)
+                                        .foregroundColor(AppColors.textSecondary)
+                                }
+                                Text(requestDateString(req.createdAt))
+                                    .font(AppTypography.caption)
+                                    .foregroundColor(AppColors.textMuted)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private func load() async {
         guard let coach = appState.currentUser, coach.role == .coach else { return }
         await MainActor.run { isLoading = true }
         do {
             let loadedAthletes = try await appState.userService.athletesForCoach(coachId: coach.id)
             let plans = try await appState.planService.plansForCoach(coachId: coach.id)
+            let coachRequests = try await appState.coachRequestService.fetchRequests(coachId: coach.id)
             let today = Calendar.current.startOfDay(for: Date())
 
             var trained: [User] = []
@@ -511,6 +559,7 @@ struct CoachSignalsView: View {
 
             await MainActor.run {
                 athletes = loadedAthletes
+                requests = coachRequests
                 trainedToday = trained
                 missedToday = missed
                 inactiveAthletes = inactive
@@ -520,6 +569,7 @@ struct CoachSignalsView: View {
         } catch {
             await MainActor.run {
                 athletes = []
+                requests = []
                 trainedToday = []
                 missedToday = []
                 inactiveAthletes = []
@@ -527,6 +577,13 @@ struct CoachSignalsView: View {
                 isLoading = false
             }
         }
+    }
+
+    private func requestDateString(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 }
 
@@ -922,333 +979,727 @@ struct CoachFirstRunOnboardingView: View {
 struct PlanBuilderView: View {
     let athlete: User
     @ObservedObject var appState: AppState
-    @StateObject private var viewModel: PlanBuilderViewModel
-    @State private var selectedWeekOffset: Int = 0
-    @State private var visibleWeekCount: Int = 1
+    @StateObject private var viewModel: PlanScheduleViewModel
+    @State private var showTemplateSheet = false
+    @State private var showRenamePlanSheet = false
+    @State private var renamePlanInput = ""
+    @State private var actionMessage: String?
+    @State private var editSheetItem: PlannedWorkoutItem?
 
     init(athlete: User, appState: AppState) {
         self.athlete = athlete
         self.appState = appState
-        _viewModel = StateObject(wrappedValue: PlanBuilderViewModel(
+        _viewModel = StateObject(wrappedValue: PlanScheduleViewModel(
             athlete: athlete,
             coachId: appState.currentUser?.id ?? "",
-            planService: appState.planService
+            planService: appState.planService,
+            userService: appState.userService
         ))
     }
 
     var body: some View {
         ZStack {
             AppColors.background.ignoresSafeArea()
-            VStack(spacing: AppSpacing.lg) {
-                SectionHeader(
-                    title: String(localized: "section_weekly_schedule"),
-                    subtitle: viewModel.plan != nil ? String(localized: "weekly_schedule_subtitle") : "Create a plan to get started",
-                    actionTitle: viewModel.plan != nil ? String(localized: "button_add_workout_day") : "Create plan",
-                    action: viewModel.plan != nil ? { viewModel.addDay(inWeekOffset: selectedWeekOffset) } : { viewModel.createPlan() }
-                )
-                .frame(maxWidth: .infinity, alignment: .leading)
-
+            Group {
                 if viewModel.isLoading {
-                    Spacer()
                     ProgressView()
-                    Spacer()
-                } else if let plan = viewModel.plan {
-                    weekTabs
-                    ScrollView {
-                        VStack(spacing: AppSpacing.sm) {
-                            ForEach(viewModel.daysForWeek(offset: selectedWeekOffset), id: \.day.id) { item in
-                                let index = item.index
-                                let day = item.day
-                                HStack(spacing: AppSpacing.sm) {
-                                    NavigationLink {
-                                        WorkoutEditorView(
-                                            plan: plan,
-                                            dayIndex: index,
-                                            planService: appState.planService,
-                                            onSave: { updatedPlan in viewModel.updatePlan(updatedPlan) }
-                                        )
-                                    } label: {
-                                        GlassCard(cornerRadius: AppTheme.Corners.md) {
-                                            HStack {
-                                                Image(systemName: "line.3.horizontal.circle")
-                                                    .foregroundColor(AppColors.textSecondary)
-                                                VStack(alignment: .leading, spacing: 4) {
-                                                    Text(day.title)
-                                                        .font(AppTypography.body)
-                                                    Text(dayDateString(day.date))
-                                                        .font(AppTypography.footnote)
-                                                        .foregroundColor(AppColors.textSecondary)
-                                                }
-                                                Spacer()
-                                                Text(String(format: String(localized: "exercises_count_format"), day.exercises.count))
-                                                    .font(AppTypography.footnote)
-                                                    .foregroundColor(AppColors.textSecondary)
-                                                Image(systemName: "chevron.right")
-                                                    .foregroundColor(AppColors.textSecondary)
-                                            }
-                                        }
-                                    }
-                                    .buttonStyle(.plain)
-
-                                    Button {
-                                        viewModel.deleteDay(at: index)
-                                        HapticManager.impact()
-                                    } label: {
-                                        Image(systemName: "trash")
-                                            .foregroundColor(AppColors.danger)
-                                            .frame(width: 38, height: 38)
-                                            .background(
-                                                Circle()
-                                                    .fill(AppColors.danger.opacity(0.12))
-                                            )
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel(Text("button_delete_day"))
-                                }
-                            }
-                            if viewModel.daysForWeek(offset: selectedWeekOffset).isEmpty {
-                                GlassCard(cornerRadius: AppTheme.Corners.md) {
-                                    Text("no_days_in_selected_week")
-                                        .font(AppTypography.footnote)
-                                        .foregroundColor(AppColors.textSecondary)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                            }
-                        }
-                        .padding(.horizontal, AppSpacing.lg)
-                        .padding(.bottom, AppSpacing.lg)
-                    }
-                    .frame(maxWidth: .infinity)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    Spacer()
-                    Text("no_plan_yet")
-                        .font(AppTypography.body)
-                        .foregroundColor(AppColors.textSecondary)
-                    PrimaryButton(title: String(localized: "button_create_plan")) {
-                        viewModel.createPlan()
-                    }
-                    .padding(.horizontal, AppSpacing.lg)
-                    Spacer()
+                    content
                 }
             }
-            .padding(.horizontal, AppSpacing.lg)
-            .padding(.top, AppSpacing.sm)
         }
-        .navigationTitle(planTitle)
+        .navigationTitle("coach_plan_nav_title")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button(String(localized: "button_copy_from_last_week")) {
+                        if viewModel.copyFromPreviousWeek() {
+                            actionMessage = String(localized: "message_week_copied")
+                            HapticManager.success()
+                        } else {
+                            actionMessage = String(localized: "message_no_previous_week_to_copy")
+                        }
+                    }
+                    Button(String(localized: "button_use_template")) {
+                        showTemplateSheet = true
+                    }
+                    Button(String(localized: "plan_menu_rename_plan")) {
+                        renamePlanInput = viewModel.plan?.name ?? ""
+                        showRenamePlanSheet = true
+                    }
+                    Divider()
+                    Button(String(localized: "plan_menu_delete_week"), role: .destructive) {
+                        viewModel.deleteSelectedWeek()
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            bottomCTA
+        }
         .onAppear { viewModel.load() }
-        .onChange(of: viewModel.plan?.days.count ?? 0) { _, _ in
-            recalculateWeekVisibility()
+        .sheet(isPresented: $showTemplateSheet) {
+            templateSheet
+        }
+        .sheet(isPresented: $showRenamePlanSheet) {
+            renamePlanSheet
+        }
+        .sheet(item: $editSheetItem) { item in
+            if let plan = viewModel.plan, plan.days.indices.contains(item.index) {
+                NavigationStack {
+                    WorkoutEditorView(
+                        plan: plan,
+                        dayIndex: item.index,
+                        planService: appState.planService,
+                        onSave: { updatedPlan in
+                            viewModel.setPlan(updatedPlan)
+                        }
+                    )
+                }
+            }
+        }
+        .alert(String(localized: "coach_action_done"), isPresented: Binding(
+            get: { actionMessage != nil },
+            set: { if !$0 { actionMessage = nil } }
+        )) {
+            Button(String(localized: "button_ok"), role: .cancel) {}
+        } message: {
+            Text(actionMessage ?? "")
         }
     }
 
-    private var planTitle: String {
-        viewModel.plan?.name ?? "Plan for \(athlete.name)"
-    }
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(String(format: String(localized: "week_number_format"), viewModel.selectedWeekIndex + 1))
+                    .font(.headline)
+                Text(viewModel.selectedWeekRangeText)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 16)
 
-    private func dayDateString(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.dateFormat = "EEE, MMM d"
-        return f.string(from: date)
-    }
+            WeekSelectorView(
+                weeks: viewModel.weeks,
+                selectedWeekIndex: viewModel.selectedWeekIndex,
+                onSelect: { viewModel.selectWeek($0) },
+                onAddWeek: { viewModel.addWeek() }
+            )
+            .padding(.horizontal, 16)
 
-    private var weekTabs: some View {
-        VStack(spacing: AppSpacing.sm) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: AppSpacing.sm) {
-                    ForEach(0..<visibleWeekCount, id: \.self) { offset in
+            if viewModel.workoutsForSelectedWeek.isEmpty {
+                emptyState
+            } else {
+                List {
+                    ForEach(viewModel.workoutsForSelectedWeek) { item in
                         Button {
-                            selectedWeekOffset = offset
-                            HapticManager.selection()
+                            editSheetItem = item
                         } label: {
-                            Text(String(format: String(localized: "week_number_format"), offset + 1))
-                                .font(AppTypography.footnote)
-                                .foregroundColor(selectedWeekOffset == offset ? .white : AppColors.textSecondary)
-                                .padding(.vertical, 8)
-                                .padding(.horizontal, 12)
-                                .background(
-                                    Capsule(style: .continuous)
-                                        .fill(selectedWeekOffset == offset ? AppColors.accent : AppColors.backgroundElevated.opacity(0.7))
-                                )
+                            WorkoutRowView(
+                                day: item.day,
+                                iconName: viewModel.iconName(for: item.day),
+                                dateText: viewModel.dayDateString(item.day.date)
+                            )
                         }
                         .buttonStyle(.plain)
-                    }
-                    Button {
-                        visibleWeekCount += 1
-                        selectedWeekOffset = visibleWeekCount - 1
-                        HapticManager.selection()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "plus")
-                            Text("button_add_week")
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                viewModel.deleteWorkout(item)
+                            } label: {
+                                Label(String(localized: "button_delete_day"), systemImage: "trash")
+                            }
                         }
-                        .font(AppTypography.footnote)
-                        .foregroundColor(AppColors.accentSecondary)
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 12)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(AppColors.backgroundElevated.opacity(0.5))
-                        )
+                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                            Button {
+                                viewModel.duplicateWorkout(item)
+                            } label: {
+                                Label(String(localized: "button_duplicate_workout"), systemImage: "plus.square.on.square")
+                            }
+                            .tint(AppColors.accent)
+                        }
+                        .contextMenu {
+                            Button(String(localized: "plan_context_edit")) {
+                                editSheetItem = item
+                            }
+                            Button(String(localized: "button_duplicate_workout")) {
+                                viewModel.duplicateWorkout(item)
+                            }
+                            Button(role: .destructive) {
+                                viewModel.deleteWorkout(item)
+                            } label: {
+                                Text(String(localized: "button_delete_day"))
+                            }
+                        }
                     }
-                    .buttonStyle(.plain)
                 }
-                .padding(.horizontal, AppSpacing.lg)
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 14) {
+            Spacer()
+            Image(systemName: "calendar")
+                .font(.system(size: 42, weight: .semibold))
+                .foregroundColor(.secondary)
+            Text("plan_empty_week_title")
+                .font(.title3.weight(.semibold))
+            Text("plan_empty_week_subtitle")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+            PrimaryButton(title: String(localized: "button_add_workout_day"), fullWidth: false) {
+                viewModel.addWorkoutDay()
+            }
+            SecondaryButton(title: String(localized: "button_copy_from_last_week"), fullWidth: false) {
+                if viewModel.copyFromPreviousWeek() {
+                    actionMessage = String(localized: "message_week_copied")
+                } else {
+                    actionMessage = String(localized: "message_no_previous_week_to_copy")
+                }
+            }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var bottomCTA: some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack {
+                PrimaryButton(title: String(localized: "button_add_workout_day"), fullWidth: true) {
+                    viewModel.addWorkoutDay()
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(.ultraThinMaterial)
         }
     }
 
-    private func recalculateWeekVisibility() {
-        let needed = max(1, viewModel.maxExistingWeekOffset + 1)
-        if visibleWeekCount < needed {
-            visibleWeekCount = needed
+    private var templateSheet: some View {
+        NavigationStack {
+            ZStack {
+                AppColors.background.ignoresSafeArea()
+                if viewModel.templates.isEmpty {
+                    VStack(spacing: 12) {
+                        Text("coach_templates_empty_title")
+                            .font(AppTypography.title2)
+                        Text("coach_templates_empty_subtitle")
+                            .font(AppTypography.footnote)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.horizontal, 24)
+                } else {
+                    List(viewModel.templates) { template in
+                        Button {
+                            viewModel.applyTemplate(template)
+                            actionMessage = String(localized: "message_template_applied")
+                            showTemplateSheet = false
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(template.name)
+                                Text("\(template.workoutTitle) • \(template.exercises.count)")
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    .scrollContentBackground(.hidden)
+                }
+            }
+            .navigationTitle("button_use_template")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(String(localized: "button_cancel")) {
+                        showTemplateSheet = false
+                    }
+                }
+            }
         }
-        if selectedWeekOffset >= visibleWeekCount {
-            selectedWeekOffset = visibleWeekCount - 1
+    }
+
+    private var renamePlanSheet: some View {
+        NavigationStack {
+            ZStack {
+                AppColors.background.ignoresSafeArea()
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("plan_rename_title")
+                        .font(.headline)
+                    TextField(String(localized: "plan_rename_placeholder"), text: $renamePlanInput)
+                        .textFieldStyle(.roundedBorder)
+                    Spacer()
+                }
+                .padding(16)
+            }
+            .navigationTitle("plan_menu_rename_plan")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(String(localized: "button_cancel")) {
+                        showRenamePlanSheet = false
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(String(localized: "button_save")) {
+                        viewModel.renamePlan(renamePlanInput)
+                        showRenamePlanSheet = false
+                    }
+                    .disabled(renamePlanInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
         }
     }
 }
 
-// MARK: - Plan Builder View Model
+struct WeekSelectorView: View {
+    let weeks: [PlanWeekTab]
+    let selectedWeekIndex: Int
+    let onSelect: (Int) -> Void
+    let onAddWeek: () -> Void
 
-final class PlanBuilderViewModel: ObservableObject {
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(weeks) { week in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            onSelect(week.index)
+                        }
+                    } label: {
+                        Text(String(format: String(localized: "week_number_format"), week.index + 1))
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(week.index == selectedWeekIndex ? .white : .primary)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(week.index == selectedWeekIndex ? AppColors.accent : AppColors.backgroundElevated)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+                Button {
+                    onAddWeek()
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(AppColors.accent)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(AppColors.backgroundElevated)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.vertical, 2)
+        }
+    }
+}
+
+struct WorkoutRowView: View {
+    let day: WorkoutDay
+    let iconName: String
+    let dateText: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: iconName)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(AppColors.accent)
+                .frame(width: 34, height: 34)
+                .background(
+                    Circle()
+                        .fill(AppColors.accent.opacity(0.14))
+                )
+            VStack(alignment: .leading, spacing: 2) {
+                Text(day.title)
+                    .font(.headline)
+                    .lineLimit(1)
+                Text(dateText)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                Text(String(format: String(localized: "exercises_count_format"), day.exercises.count))
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundColor(.secondary)
+        }
+        .padding(.vertical, 6)
+    }
+}
+
+struct PlanWeekTab: Identifiable, Hashable {
+    let index: Int
+    let startDate: Date
+    let endDate: Date
+    var id: Int { index }
+}
+
+struct PlannedWorkoutItem: Identifiable, Hashable {
+    let index: Int
+    let day: WorkoutDay
+    var id: String { day.id }
+}
+
+// MARK: - Plan Schedule View Model
+
+@MainActor
+final class PlanScheduleViewModel: ObservableObject {
     let athlete: User
     let coachId: String
     private let planService: WorkoutPlanService
+    private let userService: UserService
+    private let prefs = AppPreferences.shared
 
+    @Published var selectedWeekIndex: Int = 0
+    @Published var weeks: [PlanWeekTab] = []
+    @Published var workoutsForSelectedWeek: [PlannedWorkoutItem] = []
     @Published var plan: WorkoutPlan?
-    @Published var isLoading = false
+    @Published var templates: [WorkoutTemplate] = []
+    @Published var isLoading: Bool = false
 
-    private var weekAnchorDate: Date {
-        Calendar.current.startOfDay(for: Date())
-    }
-
-    var maxExistingWeekOffset: Int {
-        guard let plan else { return 0 }
-        let calendar = Calendar.current
-        return plan.days
-            .map { weekOffset(for: $0.date, calendar: calendar) }
-            .max() ?? 0
-    }
-
-    init(athlete: User, coachId: String, planService: WorkoutPlanService) {
+    init(athlete: User, coachId: String, planService: WorkoutPlanService, userService: UserService) {
         self.athlete = athlete
         self.coachId = coachId
         self.planService = planService
+        self.userService = userService
     }
 
-    @MainActor
+    var selectedWeekRangeText: String {
+        guard let week = weeks.first(where: { $0.index == selectedWeekIndex }) else { return "" }
+        let formatter = DateIntervalFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter.string(from: week.startDate, to: week.endDate)
+    }
+
     func load() {
         isLoading = true
         Task {
+            defer { isLoading = false }
             do {
                 let plans = try await planService.plansForCoach(coachId: coachId)
                 plan = plans.first { $0.athleteId == athlete.id }
             } catch {
                 plan = nil
             }
-            isLoading = false
+            templates = prefs.coachWorkoutTemplates(userId: coachId)
+            rebuildDerivedState()
         }
     }
 
-    @MainActor
-    func createPlan() {
+    func selectWeek(_ index: Int) {
+        selectedWeekIndex = max(0, index)
+        rebuildDerivedState()
+    }
+
+    func addWeek() {
+        selectedWeekIndex = max(selectedWeekIndex + 1, weeks.count)
+        rebuildDerivedState()
+    }
+
+    func addWorkoutDay() {
+        guard !coachId.isEmpty else { return }
+        if plan == nil {
+            createPlan()
+            return
+        }
+        guard var currentPlan = plan else { return }
+        let start = weekStart(for: selectedWeekIndex)
+        let calendar = Calendar.current
+        let occupied = Set(currentPlan.days.map { calendar.startOfDay(for: $0.date) })
+        let preferredOffsets = [0, 2, 4, 1, 3, 5, 6]
+        let chosenDate = preferredOffsets
+            .compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+            .first(where: { !occupied.contains(calendar.startOfDay(for: $0)) })
+            ?? (calendar.date(byAdding: .day, value: 6, to: start) ?? start)
+
+        let defaults = defaultWorkoutInfo(for: currentPlan.days.count + 1)
+        currentPlan.days.append(
+            WorkoutDay(
+                id: UUID().uuidString,
+                title: defaults.title,
+                focus: defaults.focus,
+                date: chosenDate,
+                exercises: []
+            )
+        )
+        currentPlan.days.sort { $0.date < $1.date }
+        setPlan(currentPlan)
+    }
+
+    func deleteWorkout(_ item: PlannedWorkoutItem) {
+        guard var currentPlan = plan, currentPlan.days.indices.contains(item.index) else { return }
+        currentPlan.days.remove(at: item.index)
+        setPlan(currentPlan)
+    }
+
+    func duplicateWorkout(_ item: PlannedWorkoutItem) {
+        guard var currentPlan = plan, currentPlan.days.indices.contains(item.index) else { return }
+        let source = currentPlan.days[item.index]
+        let calendar = Calendar.current
+        let sourceWeekStart = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: source.date)) ?? source.date
+        let occupied = Set(currentPlan.days.map { calendar.startOfDay(for: $0.date) })
+        let targetDate = nextAvailableDayDate(weekStart: sourceWeekStart, preferred: source.date, occupied: occupied, calendar: calendar)
+        let copied = WorkoutDay(
+            id: UUID().uuidString,
+            title: source.title,
+            focus: source.focus,
+            date: targetDate,
+            exercises: source.exercises.map {
+                Exercise(
+                    id: UUID().uuidString,
+                    name: $0.name,
+                    sets: $0.sets,
+                    reps: $0.reps,
+                    weight: $0.weight,
+                    restSeconds: $0.restSeconds,
+                    notes: $0.notes,
+                    tutorialURL: $0.tutorialURL,
+                    category: $0.category,
+                    catalogId: $0.catalogId,
+                    isCompleted: false
+                )
+            }
+        )
+        currentPlan.days.append(copied)
+        currentPlan.days.sort { $0.date < $1.date }
+        setPlan(currentPlan)
+    }
+
+    func copyFromPreviousWeek() -> Bool {
+        guard selectedWeekIndex > 0, var currentPlan = plan else { return false }
+        let calendar = Calendar.current
+        let source = currentPlan.days.filter {
+            weekOffset(for: $0.date, calendar: calendar) == selectedWeekIndex - 1
+        }
+        guard !source.isEmpty else { return false }
+        let targetWeekStart = weekStart(for: selectedWeekIndex)
+        var occupied = Set(
+            currentPlan.days
+                .filter { weekOffset(for: $0.date, calendar: calendar) == selectedWeekIndex }
+                .map { calendar.startOfDay(for: $0.date) }
+        )
+        for day in source.sorted(by: { $0.date < $1.date }) {
+            let sourceWeekStart = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: day.date)) ?? day.date
+            let dayOffset = calendar.dateComponents([.day], from: sourceWeekStart, to: day.date).day ?? 0
+            let preferred = calendar.date(byAdding: .day, value: dayOffset, to: targetWeekStart) ?? targetWeekStart
+            let targetDate = nextAvailableDayDate(weekStart: targetWeekStart, preferred: preferred, occupied: occupied, calendar: calendar)
+            occupied.insert(calendar.startOfDay(for: targetDate))
+            currentPlan.days.append(
+                WorkoutDay(
+                    id: UUID().uuidString,
+                    title: day.title,
+                    focus: day.focus,
+                    date: targetDate,
+                    exercises: day.exercises.map {
+                        Exercise(
+                            id: UUID().uuidString,
+                            name: $0.name,
+                            sets: $0.sets,
+                            reps: $0.reps,
+                            weight: $0.weight,
+                            restSeconds: $0.restSeconds,
+                            notes: $0.notes,
+                            tutorialURL: $0.tutorialURL,
+                            category: $0.category,
+                            catalogId: $0.catalogId,
+                            isCompleted: false
+                        )
+                    }
+                )
+            )
+        }
+        currentPlan.days.sort { $0.date < $1.date }
+        setPlan(currentPlan)
+        return true
+    }
+
+    func applyTemplate(_ template: WorkoutTemplate) {
+        guard var currentPlan = plan else { return }
+        let calendar = Calendar.current
+        let weekStartDate = weekStart(for: selectedWeekIndex)
+        let occupied = Set(currentPlan.days.map { calendar.startOfDay(for: $0.date) })
+        let chosenDate = nextAvailableDayDate(weekStart: weekStartDate, preferred: weekStartDate, occupied: occupied, calendar: calendar)
+        currentPlan.days.append(
+            WorkoutDay(
+                id: UUID().uuidString,
+                title: template.workoutTitle,
+                focus: template.focus,
+                date: chosenDate,
+                exercises: template.exercises.map {
+                    Exercise(
+                        id: UUID().uuidString,
+                        name: $0.name,
+                        sets: $0.sets,
+                        reps: $0.reps,
+                        weight: $0.weight,
+                        restSeconds: $0.restSeconds,
+                        notes: $0.notes,
+                        tutorialURL: $0.tutorialURL,
+                        category: $0.category,
+                        catalogId: $0.catalogId,
+                        isCompleted: false
+                    )
+                }
+            )
+        )
+        currentPlan.days.sort { $0.date < $1.date }
+        setPlan(currentPlan)
+    }
+
+    func renamePlan(_ name: String) {
+        guard var currentPlan = plan else { return }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        currentPlan.name = trimmed
+        setPlan(currentPlan)
+    }
+
+    func deleteSelectedWeek() {
+        guard var currentPlan = plan else { return }
+        let calendar = Calendar.current
+        currentPlan.days.removeAll {
+            weekOffset(for: $0.date, calendar: calendar) == selectedWeekIndex
+        }
+        setPlan(currentPlan)
+        rebuildDerivedState()
+        if selectedWeekIndex >= weeks.count {
+            selectedWeekIndex = max(0, weeks.count - 1)
+        }
+    }
+
+    func setPlan(_ updatedPlan: WorkoutPlan) {
+        plan = updatedPlan
+        rebuildDerivedState()
+        Task {
+            try? await planService.updatePlan(updatedPlan)
+        }
+    }
+
+    func iconName(for day: WorkoutDay) -> String {
+        let normalized = day.focus.lowercased()
+        if normalized.contains("cardio") || normalized.contains("кардио") { return "heart.circle.fill" }
+        if normalized.contains("legs") || normalized.contains("ног") { return "figure.run.circle" }
+        if normalized.contains("mobility") || normalized.contains("мобил") { return "figure.cooldown" }
+        if normalized.contains("upper") || normalized.contains("верх") { return "figure.strengthtraining.functional" }
+        return "dumbbell.fill"
+    }
+
+    func dayDateString(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.setLocalizedDateFormatFromTemplate("EEE d MMM")
+        return formatter.string(from: date)
+    }
+
+    private func createPlan() {
         guard !coachId.isEmpty else { return }
         isLoading = true
         Task {
+            defer { isLoading = false }
+            let start = weekStart(for: selectedWeekIndex)
+            let defaults = defaultWorkoutInfo(for: 1)
+            let defaultDay = WorkoutDay(
+                id: UUID().uuidString,
+                title: defaults.title,
+                focus: defaults.focus,
+                date: start,
+                exercises: []
+            )
             do {
-                let calendar = Calendar.current
-                let startOfToday = calendar.startOfDay(for: Date())
-                let defaultDay = WorkoutDay(
-                    id: UUID().uuidString,
-                    title: "Workout 1",
-                    focus: "Full body",
-                    date: startOfToday,
-                    exercises: []
-                )
-                let newPlan = try await planService.createPlan(
-                    name: "\(self.athlete.name)'s Plan",
+                let created = try await planService.createPlan(
+                    name: athlete.name + "'s Plan",
                     description: "",
-                    athleteId: self.athlete.id,
-                    coachId: self.coachId,
+                    athleteId: athlete.id,
+                    coachId: coachId,
                     days: [defaultDay]
                 )
-                plan = newPlan
-            } catch { }
-            isLoading = false
+                plan = created
+                rebuildDerivedState()
+            } catch {
+                // ignore; UI remains in empty state
+            }
         }
     }
 
-    func addDay(inWeekOffset weekOffset: Int) {
-        guard var p = plan else { return }
+    private func rebuildDerivedState() {
         let calendar = Calendar.current
-        let start = weekStart(for: weekOffset, calendar: calendar)
-        let existingDates = Set(
-            p.days.map { calendar.startOfDay(for: $0.date) }
-        )
-        let preferredOffsets = [0, 2, 4, 1, 3, 5, 6]
-        let chosenDate: Date = preferredOffsets
-            .compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
-            .first(where: { !existingDates.contains(calendar.startOfDay(for: $0)) })
-            ?? (calendar.date(byAdding: .day, value: 6, to: start) ?? start)
-
-        let defaults = defaultWorkoutInfo(for: p.days.count + 1)
-        let newDay = WorkoutDay(
-            id: UUID().uuidString,
-            title: defaults.title,
-            focus: defaults.focus,
-            date: chosenDate,
-            exercises: []
-        )
-        p.days.append(newDay)
-        p.days.sort { $0.date < $1.date }
-        updatePlan(p)
-    }
-
-    func updatePlan(_ p: WorkoutPlan) {
-        plan = p
-        Task {
-            try? await planService.updatePlan(p)
+        let maxWeek = plan?.days.map { weekOffset(for: $0.date, calendar: calendar) }.max() ?? 0
+        let weekCount = max(1, max(maxWeek + 1, selectedWeekIndex + 1))
+        weeks = (0..<weekCount).map { index in
+            let start = weekStart(for: index)
+            let end = calendar.date(byAdding: .day, value: 6, to: start) ?? start
+            return PlanWeekTab(index: index, startDate: start, endDate: end)
         }
-    }
-
-    func deleteDay(at index: Int) {
-        guard var p = plan, p.days.indices.contains(index) else { return }
-        p.days.remove(at: index)
-        updatePlan(p)
-    }
-
-    func daysForWeek(offset: Int) -> [(index: Int, day: WorkoutDay)] {
-        guard let plan else { return [] }
-        let calendar = Calendar.current
-        return Array(plan.days.enumerated())
-            .filter { weekOffset(for: $0.element.date, calendar: calendar) == offset }
-            .map { (index: $0.offset, day: $0.element) }
+        guard let currentPlan = plan else {
+            workoutsForSelectedWeek = []
+            return
+        }
+        workoutsForSelectedWeek = Array(currentPlan.days.enumerated())
+            .filter { weekOffset(for: $0.element.date, calendar: calendar) == selectedWeekIndex }
+            .map { PlannedWorkoutItem(index: $0.offset, day: $0.element) }
             .sorted { $0.day.date < $1.day.date }
     }
 
-    private func weekStart(for offset: Int, calendar: Calendar) -> Date {
-        let todayStart = calendar.startOfDay(for: weekAnchorDate)
+    private func weekStart(for offset: Int) -> Date {
+        let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: Date())
         let currentWeekStart = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: todayStart)) ?? todayStart
         return calendar.date(byAdding: .day, value: max(0, offset) * 7, to: currentWeekStart) ?? currentWeekStart
     }
 
     private func weekOffset(for date: Date, calendar: Calendar) -> Int {
-        let start = weekStart(for: 0, calendar: calendar)
+        let start = weekStart(for: 0)
         let targetWeekStart = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)) ?? date
         let days = calendar.dateComponents([.day], from: start, to: targetWeekStart).day ?? 0
         return max(0, days / 7)
     }
 
+    private func nextAvailableDayDate(
+        weekStart: Date,
+        preferred: Date,
+        occupied: Set<Date>,
+        calendar: Calendar
+    ) -> Date {
+        let preferredStart = calendar.startOfDay(for: preferred)
+        if !occupied.contains(preferredStart) {
+            return preferredStart
+        }
+        for offset in 0..<7 {
+            if let date = calendar.date(byAdding: .day, value: offset, to: weekStart) {
+                let start = calendar.startOfDay(for: date)
+                if !occupied.contains(start) {
+                    return start
+                }
+            }
+        }
+        return preferredStart
+    }
+
     private func defaultWorkoutInfo(for number: Int) -> (title: String, focus: String) {
-        let templates = [
+        let defaults = [
             (String(localized: "workout_title_upper_body"), String(localized: "workout_focus_upper_body")),
             (String(localized: "workout_title_lower_body"), String(localized: "workout_focus_lower_body")),
             (String(localized: "workout_title_full_body"), String(localized: "workout_focus_full_body"))
         ]
-        let template = templates[(number - 1) % templates.count]
-        return (template.0, template.1)
+        return defaults[(number - 1) % defaults.count]
     }
 }
 
