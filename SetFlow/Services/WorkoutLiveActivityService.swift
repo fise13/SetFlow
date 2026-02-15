@@ -12,6 +12,7 @@ import ActivityKit
 enum WorkoutLiveActivityService {
     private static let throttleInterval: TimeInterval = 1.0
     private static var lastRestUpdate: Date = .distantPast
+    private static var activeActivityId: String?
 
     /// Start Live Activity when workout begins.
     static func start(
@@ -49,6 +50,7 @@ enum WorkoutLiveActivityService {
                 content: .init(state: state, staleDate: nil),
                 pushType: nil
             )
+            activeActivityId = Activity<WorkoutActivityAttributes>.activities.first?.id
         }
     }
 
@@ -65,7 +67,7 @@ enum WorkoutLiveActivityService {
         totalVolume: Double
     ) {
         Task { @MainActor in
-            guard let activity = Activity<WorkoutActivityAttributes>.activities.first else { return }
+            guard let activity = activeActivity() else { return }
             let state = WorkoutActivityAttributes.ContentState(
                 currentExerciseName: currentExerciseName,
                 currentExerciseIndex: currentExerciseIndex,
@@ -95,7 +97,7 @@ enum WorkoutLiveActivityService {
         totalVolume: Double
     ) {
         Task { @MainActor in
-            guard let activity = Activity<WorkoutActivityAttributes>.activities.first else { return }
+            guard let activity = activeActivity() else { return }
             let state = WorkoutActivityAttributes.ContentState(
                 currentExerciseName: currentExerciseName,
                 currentExerciseIndex: currentExerciseIndex,
@@ -128,7 +130,7 @@ enum WorkoutLiveActivityService {
         guard now.timeIntervalSince(lastRestUpdate) >= throttleInterval else { return }
         lastRestUpdate = now
         Task { @MainActor in
-            guard let activity = Activity<WorkoutActivityAttributes>.activities.first else { return }
+            guard let activity = activeActivity() else { return }
             let state = WorkoutActivityAttributes.ContentState(
                 currentExerciseName: currentExerciseName,
                 currentExerciseIndex: currentExerciseIndex,
@@ -152,7 +154,7 @@ enum WorkoutLiveActivityService {
         totalVolume: Double
     ) {
         Task { @MainActor in
-            guard let activity = Activity<WorkoutActivityAttributes>.activities.first else { return }
+            guard let activity = activeActivity() else { return }
             let state = WorkoutActivityAttributes.ContentState(
                 currentExerciseName: "",
                 currentExerciseIndex: 1,
@@ -167,6 +169,7 @@ enum WorkoutLiveActivityService {
             )
             await activity.update(ActivityContent(state: state, staleDate: nil))
             await activity.end(nil, dismissalPolicy: .after(Date().addingTimeInterval(5)))
+            activeActivityId = nil
         }
     }
 
@@ -182,6 +185,18 @@ enum WorkoutLiveActivityService {
         for activity in Activity<WorkoutActivityAttributes>.activities {
             await activity.end(nil, dismissalPolicy: .immediate)
         }
+        activeActivityId = nil
+    }
+
+    @MainActor
+    private static func activeActivity() -> Activity<WorkoutActivityAttributes>? {
+        if let id = activeActivityId,
+           let existing = Activity<WorkoutActivityAttributes>.activities.first(where: { $0.id == id }) {
+            return existing
+        }
+        let fallback = Activity<WorkoutActivityAttributes>.activities.first
+        activeActivityId = fallback?.id
+        return fallback
     }
 
 }

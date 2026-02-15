@@ -12,6 +12,20 @@
 "button_continue" = "Далее";
 "button_get_started" = "Начать";
 "skip_to_sign_in" = "Перейти к входу";
+"first_run_coach_nav_title" = "Обучение тренера";
+"first_run_coach_title" = "Добро пожаловать, тренер";
+"first_run_coach_message" = "Коротко покажем ключевые функции, чтобы вы быстро начали работать.";
+"first_run_coach_action" = "Открыть приложение";
+"first_run_coach_skip" = "Пропустить";
+"first_run_coach_never_show_again" = "Больше не показывать обучение";
+"first_run_coach_feature_plans_title" = "Планирование по неделям";
+"first_run_coach_feature_plans_subtitle" = "Создавайте недельные планы и добавляйте тренировочные дни для каждого атлета.";
+"first_run_coach_feature_exercises_title" = "Умный конструктор упражнений";
+"first_run_coach_feature_exercises_subtitle" = "Используйте подсказки упражнений, задавайте нагрузку/отдых и прикрепляйте видео техники.";
+"first_run_coach_feature_updates_title" = "Мгновенные обновления";
+"first_run_coach_feature_updates_subtitle" = "Отправляйте изменения плана, чтобы атлеты сразу видели обновления.";
+"first_run_coach_feature_summary_title" = "Сводка по фидбеку атлета";
+"first_run_coach_feature_summary_subtitle" = "Смотрите оценки тренировок, сложность упражнений и заметки атлетов.";
 
 /* Sign In */
 "signin_welcome_back" = "С возвращением";
@@ -240,6 +254,7 @@
 "coach_summary_workouts" = "Тренировки";
 "coach_summary_avg_rating" = "Средняя оценка";
 "coach_summary_last" = "Последняя";
+"coach_section_recent_workouts" = "Последние сводки тренировок";
 "summary_label" = "Сводка";
 "placeholder_charts" = "Здесь будут графики и статистика.";
 "section_plan" = "План";
@@ -315,6 +330,13 @@
 "exercise_video_pill" = "видео";
 "exercise_watch_technique" = "Смотреть технику";
 "exercise_open_video" = "Открыть видео упражнения";
+"section_athlete_requests" = "Запросы от атлетов";
+"athlete_request_workout_title" = "%@ просит тренировку";
+"athlete_request_workout_subtitle" = "На сегодня нет запланированной тренировки";
+"athlete_completed_workout_title" = "%@ завершил(а) тренировку";
+"athlete_completed_workout_subtitle" = "%@ • Оценка атлета: %d/5";
+"no_athlete_requests" = "Пока нет запросов";
+"no_athlete_requests_subtitle" = "Атлеты могут нажать «Написать тренеру», если у них нет тренировки на день.";
 "section_recent_updates" = "Недавние обновления";
 "recent_updates_subtitle" = "Что увидят атлеты";
 "coach_no_workout_summaries" = "Пока нет сводок тренировок от атлетов.";

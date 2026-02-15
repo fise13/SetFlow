@@ -65,11 +65,21 @@ struct CoachTabRootView: View {
                 evaluateFirstRunOnboardingIfNeeded()
             }
         }
-        .fullScreenCover(isPresented: $showFirstRunOnboarding) {
-            CoachFirstRunOnboardingView {
-                prefs.markFirstRunOnboardingSeen(role: .coach, userId: coach.id)
-                showFirstRunOnboarding = false
-            }
+        .sheet(isPresented: $showFirstRunOnboarding) {
+            CoachFirstRunOnboardingView(
+                onContinue: {
+                    prefs.markFirstRunOnboardingSeen(role: .coach, userId: coach.id)
+                    showFirstRunOnboarding = false
+                },
+                onSkip: { neverShowAgain in
+                    if neverShowAgain {
+                        prefs.markFirstRunOnboardingSeen(role: .coach, userId: coach.id)
+                    }
+                    showFirstRunOnboarding = false
+                }
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -92,11 +102,7 @@ struct CoachTabRootView: View {
         didEvaluateOnboarding = true
         let alreadySeen = prefs.hasSeenFirstRunOnboarding(role: .coach, userId: coach.id)
         guard !alreadySeen else { return }
-        if dashboardVM.athletes.isEmpty {
-            showFirstRunOnboarding = true
-        } else {
-            prefs.markFirstRunOnboardingSeen(role: .coach, userId: coach.id)
-        }
+        showFirstRunOnboarding = true
     }
 }
 
@@ -342,6 +348,49 @@ struct AthleteProfileView: View {
                         }
                         .padding(.horizontal, AppSpacing.lg)
 
+                        if !logs.isEmpty {
+                            SectionHeader(title: String(localized: "coach_section_recent_workouts"), actionTitle: nil, action: nil)
+                            VStack(spacing: AppSpacing.sm) {
+                                ForEach(Array(logs.prefix(5).enumerated()), id: \.element.id) { _, log in
+                                    GlassCard(cornerRadius: AppTheme.Corners.md) {
+                                        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                                            HStack {
+                                                Text(log.workoutTitle)
+                                                    .font(AppTypography.headline)
+                                                Spacer()
+                                                Text(relativeDate(log.date))
+                                                    .font(AppTypography.caption)
+                                                    .foregroundColor(AppColors.textSecondary)
+                                            }
+                                            Text(String(format: String(localized: "coach_summary_overview_format"), log.totalSets, Int(log.totalVolume), log.rating))
+                                                .font(AppTypography.footnote)
+                                                .foregroundColor(AppColors.textSecondary)
+                                            if !log.exerciseFeedbacks.isEmpty {
+                                                VStack(alignment: .leading, spacing: 4) {
+                                                    ForEach(log.exerciseFeedbacks.prefix(3)) { feedback in
+                                                        HStack {
+                                                            Text(feedback.exerciseName)
+                                                                .font(AppTypography.caption)
+                                                            Spacer()
+                                                            Text(String(format: String(localized: "difficulty_value_format"), feedback.difficulty))
+                                                                .font(AppTypography.caption)
+                                                                .foregroundColor(AppColors.textMuted)
+                                                        }
+                                                        if let note = feedback.note, !note.isEmpty {
+                                                            Text(note)
+                                                                .font(AppTypography.caption)
+                                                                .foregroundColor(AppColors.accentSecondary)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, AppSpacing.lg)
+                        }
+
                         SectionHeader(title: String(localized: "section_plan"), actionTitle: nil, action: nil)
                         NavigationLink {
                             PlanBuilderView(athlete: athlete, appState: appState)
@@ -538,40 +587,90 @@ struct PlanProgramsEntryView: View {
 
 struct CoachFirstRunOnboardingView: View {
     var onContinue: () -> Void
+    var onSkip: (_ neverShowAgain: Bool) -> Void
+    @State private var neverShowAgain = false
     
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [Color(red: 0.08, green: 0.10, blue: 0.16), Color(red: 0.03, green: 0.13, blue: 0.22)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-            
-            VStack(spacing: AppSpacing.xl) {
-                Spacer()
-                Image(systemName: "person.3.sequence.fill")
-                    .font(.system(size: 44, weight: .semibold))
-                    .foregroundColor(.white)
-                    .padding()
-                    .background(Circle().fill(Color.white.opacity(0.14)))
-                
-                VStack(spacing: AppSpacing.md) {
-                    Text("first_run_coach_title")
-                        .font(AppTypography.title1)
-                        .foregroundColor(.white)
-                    Text("first_run_coach_message")
-                        .font(AppTypography.body)
-                        .foregroundColor(Color.white.opacity(0.85))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, AppSpacing.xl)
+        NavigationStack {
+            ZStack {
+                AppColors.background.ignoresSafeArea()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                        HStack(spacing: AppSpacing.md) {
+                            Image(systemName: "sparkles.rectangle.stack.fill")
+                                .font(.system(size: 28, weight: .semibold))
+                                .foregroundColor(AppColors.accent)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("first_run_coach_title")
+                                    .font(AppTypography.title2)
+                                Text("first_run_coach_message")
+                                    .font(AppTypography.footnote)
+                                    .foregroundColor(AppColors.textSecondary)
+                            }
+                        }
+
+                        featureItem(
+                            icon: "calendar.badge.plus",
+                            title: String(localized: "first_run_coach_feature_plans_title"),
+                            subtitle: String(localized: "first_run_coach_feature_plans_subtitle")
+                        )
+                        featureItem(
+                            icon: "dumbbell.fill",
+                            title: String(localized: "first_run_coach_feature_exercises_title"),
+                            subtitle: String(localized: "first_run_coach_feature_exercises_subtitle")
+                        )
+                        featureItem(
+                            icon: "paperplane.fill",
+                            title: String(localized: "first_run_coach_feature_updates_title"),
+                            subtitle: String(localized: "first_run_coach_feature_updates_subtitle")
+                        )
+                        featureItem(
+                            icon: "chart.line.uptrend.xyaxis",
+                            title: String(localized: "first_run_coach_feature_summary_title"),
+                            subtitle: String(localized: "first_run_coach_feature_summary_subtitle")
+                        )
+
+                        Toggle(isOn: $neverShowAgain) {
+                            Text("first_run_coach_never_show_again")
+                                .font(AppTypography.footnote)
+                        }
+                        .tint(AppColors.accent)
+                        .padding(.top, AppSpacing.sm)
+
+                        HStack(spacing: AppSpacing.sm) {
+                            SecondaryButton(title: String(localized: "first_run_coach_skip")) {
+                                onSkip(neverShowAgain)
+                            }
+                            PrimaryButton(title: String(localized: "first_run_coach_action")) {
+                                onContinue()
+                            }
+                        }
+                    }
+                    .padding(.horizontal, AppSpacing.lg)
+                    .padding(.vertical, AppSpacing.lg)
+                }
+            }
+            .navigationTitle("first_run_coach_nav_title")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private func featureItem(icon: String, title: String, subtitle: String) -> some View {
+        GlassCard(cornerRadius: AppTheme.Corners.md) {
+            HStack(alignment: .top, spacing: AppSpacing.md) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(AppColors.accent)
+                    .frame(width: 28, height: 28)
+                    .background(Circle().fill(AppColors.accent.opacity(0.14)))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(AppTypography.callout.weight(.semibold))
+                    Text(subtitle)
+                        .font(AppTypography.footnote)
+                        .foregroundColor(AppColors.textSecondary)
                 }
                 Spacer()
-                PrimaryActionButton(title: String(localized: "first_run_coach_action")) {
-                    onContinue()
-                }
-                .padding(.horizontal, AppSpacing.lg)
-                .padding(.bottom, AppSpacing.xl)
             }
         }
     }
@@ -1529,11 +1628,19 @@ struct CoachUpdatesView: View {
                     ForEach(requests) { req in
                         GlassCard(cornerRadius: AppTheme.Corners.md) {
                             VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                                Text(String(format: String(localized: "athlete_request_workout_title"), req.athleteName))
-                                    .font(AppTypography.headline)
-                                Text("athlete_request_workout_subtitle")
-                                    .font(AppTypography.footnote)
-                                    .foregroundColor(AppColors.textSecondary)
+                                if req.type == "workout_completed" {
+                                    Text(String(format: String(localized: "athlete_completed_workout_title"), req.athleteName))
+                                        .font(AppTypography.headline)
+                                    Text(String(format: String(localized: "athlete_completed_workout_subtitle"), req.workoutTitle ?? "Workout", req.rating ?? 0))
+                                        .font(AppTypography.footnote)
+                                        .foregroundColor(AppColors.textSecondary)
+                                } else {
+                                    Text(String(format: String(localized: "athlete_request_workout_title"), req.athleteName))
+                                        .font(AppTypography.headline)
+                                    Text("athlete_request_workout_subtitle")
+                                        .font(AppTypography.footnote)
+                                        .foregroundColor(AppColors.textSecondary)
+                                }
                                 Text(requestDateString(req.createdAt))
                                     .font(AppTypography.caption)
                                     .foregroundColor(AppColors.textMuted)

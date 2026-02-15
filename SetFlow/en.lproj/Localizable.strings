@@ -131,6 +131,8 @@
 "section_athlete_requests" = "Requests from athletes";
 "athlete_request_workout_title" = "%@ asked for a workout";
 "athlete_request_workout_subtitle" = "No workout scheduled for today";
+"athlete_completed_workout_title" = "%@ finished a workout";
+"athlete_completed_workout_subtitle" = "%@ • Athlete rating: %d/5";
 "no_athlete_requests" = "No requests yet.";
 "no_athlete_requests_subtitle" = "Athletes can tap \"Write to coach\" when they have no workout for the day.";
 
@@ -140,7 +142,18 @@
 "first_run_athlete_action" = "Got it";
 "first_run_coach_title" = "Welcome, coach";
 "first_run_coach_message" = "Invite athletes with your code, then create the first plan in Programs so they can start training today.";
+"first_run_coach_nav_title" = "Coach onboarding";
 "first_run_coach_action" = "Open app";
+"first_run_coach_skip" = "Skip";
+"first_run_coach_never_show_again" = "Do not show onboarding again";
+"first_run_coach_feature_plans_title" = "Weekly planning";
+"first_run_coach_feature_plans_subtitle" = "Create week-by-week plans and add workout days for each athlete.";
+"first_run_coach_feature_exercises_title" = "Smart exercise builder";
+"first_run_coach_feature_exercises_subtitle" = "Use exercise suggestions, set load/rest, and attach optional technique videos.";
+"first_run_coach_feature_updates_title" = "Instant updates";
+"first_run_coach_feature_updates_subtitle" = "Send plan changes to athletes so they immediately see updates.";
+"first_run_coach_feature_summary_title" = "Athlete feedback summary";
+"first_run_coach_feature_summary_subtitle" = "Review workout ratings, exercise difficulty, and notes from athletes.";
 
 /* Workout Tab Empty */
 "no_workout_today_title" = "No workout today";
@@ -263,6 +276,7 @@
 "coach_summary_workouts" = "Workouts";
 "coach_summary_avg_rating" = "Avg rating";
 "coach_summary_last" = "Last";
+"coach_section_recent_workouts" = "Recent workout summaries";
 "summary_label" = "Summary";
 "placeholder_charts" = "Placeholder charts and stats. Replace with real data later.";
 "section_plan" = "Plan";

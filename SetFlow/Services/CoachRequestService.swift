@@ -16,6 +16,8 @@ struct CoachRequest: Identifiable {
     let athleteId: String
     let athleteName: String
     let type: String // "workout_request"
+    let workoutTitle: String?
+    let rating: Int?
     let createdAt: Date
 }
 
@@ -34,6 +36,27 @@ final class CoachRequestService {
             "athleteId": athleteId,
             "athleteName": athleteName,
             "type": "workout_request",
+            "createdAt": Timestamp(date: Date())
+        ]
+        try await ref.setData(data)
+    }
+
+    /// Athlete completed workout and sends summary ping to coach.
+    func sendWorkoutCompleted(
+        athleteId: String,
+        athleteName: String,
+        coachId: String,
+        workoutTitle: String,
+        rating: Int
+    ) async throws {
+        let ref = db.collection(coachRequestsCollection).document()
+        let data: [String: Any] = [
+            "coachId": coachId,
+            "athleteId": athleteId,
+            "athleteName": athleteName,
+            "type": "workout_completed",
+            "workoutTitle": workoutTitle,
+            "rating": rating,
             "createdAt": Timestamp(date: Date())
         ]
         try await ref.setData(data)
@@ -59,6 +82,8 @@ final class CoachRequestService {
                 athleteId: athleteId,
                 athleteName: athleteName,
                 type: type,
+                workoutTitle: data["workoutTitle"] as? String,
+                rating: data["rating"] as? Int,
                 createdAt: ts.dateValue()
             )
         }

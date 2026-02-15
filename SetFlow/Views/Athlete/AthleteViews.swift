@@ -1425,10 +1425,22 @@ struct WorkoutSummaryView: View {
             exerciseFeedbacks: exerciseFeedbacks
         )
         let service = appState.logService
+        let coachRequestService = appState.coachRequestService
+        let athleteUser = appState.currentUser
         let popHome = popToHome
         Task { @MainActor in
             do {
                 try await service.saveLog(logToSave)
+                if let athlete = athleteUser,
+                   let coachId = athlete.coachId {
+                    try? await coachRequestService.sendWorkoutCompleted(
+                        athleteId: athlete.id,
+                        athleteName: athlete.name,
+                        coachId: coachId,
+                        workoutTitle: logToSave.workoutTitle,
+                        rating: rating
+                    )
+                }
                 HapticManager.success()
                 showSavedFeedback = true
                 try? await Task.sleep(nanoseconds: 400_000_000)
