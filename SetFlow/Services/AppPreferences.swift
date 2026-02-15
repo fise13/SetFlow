@@ -40,6 +40,14 @@ final class AppPreferences: ObservableObject {
         static let weightUnit = "app.preferences.weightUnit"
         static let notificationsEnabled = "app.preferences.notificationsEnabled"
         static let reminderHour = "app.preferences.reminderHour"
+        
+        static func athleteFirstRunOnboardingSeen(userId: String) -> String {
+            "app.preferences.onboarding.athlete.\(userId)"
+        }
+        
+        static func coachFirstRunOnboardingSeen(userId: String) -> String {
+            "app.preferences.onboarding.coach.\(userId)"
+        }
     }
 
     private let defaults = UserDefaults.standard
@@ -84,5 +92,23 @@ final class AppPreferences: ObservableObject {
 
     func displayVolume(kg: Double) -> String {
         weightUnit.displayVolume(kg: kg)
+    }
+    
+    func hasSeenFirstRunOnboarding(role: UserRole, userId: String) -> Bool {
+        switch role {
+        case .athlete:
+            return defaults.bool(forKey: Keys.athleteFirstRunOnboardingSeen(userId: userId))
+        case .coach:
+            return defaults.bool(forKey: Keys.coachFirstRunOnboardingSeen(userId: userId))
+        }
+    }
+    
+    func markFirstRunOnboardingSeen(role: UserRole, userId: String) {
+        switch role {
+        case .athlete:
+            defaults.set(true, forKey: Keys.athleteFirstRunOnboardingSeen(userId: userId))
+        case .coach:
+            defaults.set(true, forKey: Keys.coachFirstRunOnboardingSeen(userId: userId))
+        }
     }
 }

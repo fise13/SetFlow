@@ -165,6 +165,75 @@ struct SecondaryButton: View {
     }
 }
 
+// MARK: - Write to coach (athlete)
+
+struct WriteToCoachButton: View {
+    let user: User
+    @EnvironmentObject private var appState: AppState
+    @State private var isSendingRequest = false
+    @State private var showRequestSent = false
+    @State private var showNoCoachAlert = false
+
+    var body: some View {
+        Button {
+            if user.coachId == nil {
+                showNoCoachAlert = true
+                return
+            }
+            guard let coachId = user.coachId else { return }
+            isSendingRequest = true
+            Task {
+                do {
+                    try await appState.coachRequestService.sendWorkoutRequest(
+                        athleteId: user.id,
+                        athleteName: user.name,
+                        coachId: coachId
+                    )
+                    await MainActor.run {
+                        isSendingRequest = false
+                        showRequestSent = true
+                        HapticManager.success()
+                    }
+                } catch {
+                    await MainActor.run {
+                        isSendingRequest = false
+                        HapticManager.impact()
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: AppSpacing.sm) {
+                if isSendingRequest {
+                    ProgressView()
+                        .scaleEffect(0.9)
+                        .tint(AppColors.accent)
+                } else {
+                    Image(systemName: "paperplane.fill")
+                        .font(.system(size: 14))
+                }
+                Text("button_write_to_coach")
+                    .font(AppTypography.callout)
+                    .fontWeight(.medium)
+            }
+            .foregroundColor(AppColors.accent)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, AppSpacing.sm)
+        }
+        .buttonStyle(.plain)
+        .disabled(isSendingRequest)
+        .alert(String(localized: "coach_request_sent_title"), isPresented: $showRequestSent) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("coach_request_sent")
+        }
+        .alert(String(localized: "coach_request_no_coach"), isPresented: $showNoCoachAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("coach_request_no_coach")
+        }
+    }
+}
+
 /// Use this inside `NavigationLink` labels (non-interactive).
 struct SecondaryButtonLabel: View {
     let title: String
@@ -327,6 +396,37 @@ struct LoadingButtonLabel: View {
     }
 }
 
+// MARK: - Skeletons
+
+struct SkeletonBar: View {
+    var width: CGFloat? = nil
+    var height: CGFloat = 12
+    var cornerRadius: CGFloat = 8
+    @State private var isPulsing = false
+    
+    var body: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(AppColors.progressBackground)
+            .frame(width: width, height: height)
+            .opacity(isPulsing ? 0.45 : 0.8)
+            .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: isPulsing)
+            .onAppear { isPulsing = true }
+    }
+}
+
+struct SkeletonCard: View {
+    var body: some View {
+        GlassCard(cornerRadius: AppTheme.Corners.md) {
+            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                SkeletonBar(width: 140, height: 16)
+                SkeletonBar(width: 220, height: 12)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, AppSpacing.sm)
+        }
+    }
+}
+
 // MARK: - Glass Card & Section Header
 
 struct GlassCard<Content: View>: View {
@@ -451,7 +551,7 @@ struct ExerciseRow: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(AppColors.accent.opacity(0.12))
-                Image(systemName: "figure.strengthtraining.functional")
+                Image(systemName: exercise.iconName)
                     .foregroundColor(AppColors.accent)
                     .font(.system(size: 18, weight: .semibold))
             }
@@ -464,8 +564,13 @@ struct ExerciseRow: View {
                 
                 HStack(spacing: 6) {
                     ExerciseSetPill("\(exercise.sets)x\(exercise.reps)", icon: "number")
-                    ExerciseSetPill(weightText, icon: "scalemass")
+                    if exercise.requiresWeight {
+                        ExerciseSetPill(weightText, icon: "scalemass")
+                    }
                     ExerciseSetPill("\(exercise.restSeconds)s", icon: "timer")
+                    if exercise.tutorialURL != nil {
+                        ExerciseSetPill(String(localized: "exercise_video_pill"), icon: "play.rectangle")
+                    }
                 }
             }
             Spacer()
@@ -595,6 +700,7 @@ struct ProgressRing: View {
 
 struct WeeklyCalendarStrip: View {
     @Binding var selectedDate: Date
+    var markedDates: [Date] = []
     
     private var daysInWeek: [Date] {
         let calendar = Calendar.current
@@ -619,6 +725,9 @@ struct WeeklyCalendarStrip: View {
                             Text(dayNumber(for: date))
                                 .font(AppTypography.callout)
                                 .fontWeight(.semibold)
+                            Circle()
+                                .fill(hasWorkout(on: date) ? AppColors.accentSecondary : Color.clear)
+                                .frame(width: 5, height: 5)
                         }
                         .foregroundColor(isSelected ? .white : AppColors.textPrimary)
                         .frame(width: 44, height: 60)
@@ -653,6 +762,10 @@ struct WeeklyCalendarStrip: View {
         let f = DateFormatter()
         f.dateFormat = "d"
         return f.string(from: date)
+    }
+
+    private func hasWorkout(on date: Date) -> Bool {
+        markedDates.contains { Calendar.current.isDate($0, inSameDayAs: date) }
     }
 }
 

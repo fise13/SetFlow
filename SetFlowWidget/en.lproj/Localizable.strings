@@ -1,0 +1,9 @@
+/* Live Activity */
+"live_activity_rest" = "Rest";
+"live_activity_active" = "Active";
+"live_activity_completed" = "Complete";
+"live_activity_next_exercise" = "Next exercise";
+"live_stat_sets" = "Sets";
+"rest_seconds_format" = "%ds";
+"set_progress_format" = "Set %d / %d";
+"exercise_progress_format" = "Exercise %d of %d";

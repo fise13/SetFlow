@@ -19,6 +19,7 @@ final class AppState: ObservableObject {
     let planService = WorkoutPlanService()
     let logService = WorkoutLogService()
     let inviteCodeService = InviteCodeService()
+    let coachRequestService = CoachRequestService()
 
     private var cancellables = Set<AnyCancellable>()
 

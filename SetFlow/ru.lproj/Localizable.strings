@@ -100,12 +100,15 @@
 "today_focus_format" = "Сегодня • %@";
 "no_workout_today" = "Нет тренировки";
 "no_workout_today_desc" = "Тренер не запланировал тренировку на сегодня.";
+"no_workout_selected_day" = "На этот день тренировка не запланирована.";
+"workout_focus_not_set" = "Фокус не указан";
 "section_this_week" = "На неделе";
 "stat_streak" = "Серия";
 "stat_volume" = "Объём";
 "stat_volume_week" = "за неделю";
 "stat_next" = "Далее";
 "stat_planned" = "запланировано";
+"planned" = "запланировано";
 "this_week" = "за неделю";
 "days_in_a_row" = "дней подряд";
 "streak_days_format" = "%d дней подряд";
@@ -125,16 +128,28 @@
 "exercises_count_format" = "%d упражнений";
 "section_exercises" = "Упражнения";
 "button_start_workout" = "Начать тренировку";
+"preflight_sets_format" = "%d подходов";
+"preflight_est_duration" = "~%d мин";
+"button_view_all_exercises" = "Все упражнения";
+"no_exercises_cant_start" = "Нет упражнений";
+"no_exercises_cant_start_desc" = "Попросите тренера добавить упражнения в сегодняшний план.";
 
 /* Live Workout */
 "exercise_progress_format" = "Упражнение %d из %d";
 "set_progress_format" = "Подход %d / %d";
 "rest_label" = "Отдых";
+"rest_between_sets" = "Между подходами";
+"rest_between_exercises" = "Следующее упражнение";
 "rest_seconds_format" = "%d с";
+"live_stat_sets" = "Подходы";
+"live_stat_remaining" = "Осталось";
 "button_skip_rest" = "Пропустить отдых";
+"button_add_10_sec" = "+10 сек";
 "button_done_set" = "Подход выполнен";
 "no_exercises" = "Нет упражнений";
 "button_end_workout_early" = "Завершить раньше";
+"end_workout_confirm_title" = "Завершить тренировку раньше?";
+"end_workout_confirm_message" = "Вы выполнили %d подходов. Прогресс будет сохранён.";
 "nav_live" = "Тренировка";
 "all_sets_complete" = "Все подходы сделаны!";
 "sets_volume_format" = "%d подходов • %@ объём";
@@ -148,13 +163,25 @@
 "summary_total_sets" = "Подходов всего";
 "summary_volume" = "Объём";
 "summary_rating" = "Оценка";
+"summary_exercise_feedback" = "Фидбек по упражнениям для тренера";
+"summary_difficulty" = "Сложность";
+"difficulty_value_format" = "%d/5";
+"summary_exercise_note_placeholder" = "Заметка (например: в следующий раз 50 кг)";
 "button_save_go_home" = "Сохранить и на главную";
 "saving" = "Сохранение…";
+"save_success" = "Сохранено!";
+"save_error_title" = "Не удалось сохранить";
+"save_error_retry" = "Повторить";
 
 /* History */
 "section_history" = "История";
 "no_workouts_logged" = "Пока нет записей";
-"no_workouts_logged_desc" = "Выполните тренировку во вкладке «Тренировка», чтобы она здесь появилась.";
+"no_workouts_logged_desc" = "Выполните первую тренировку во вкладке «Тренировка» — она появится здесь и войдёт в ваш прогресс.";
+"history_filter_week" = "Неделя";
+"history_filter_month" = "Месяц";
+"history_filter_all" = "Всё";
+"history_summary_workouts" = "%d тренировок";
+"history_summary_volume" = "%@ объём";
 "section_this_week_volume" = "На неделе";
 "total_volume" = "Общий объём";
 "nav_history" = "История";
@@ -203,11 +230,16 @@
 /* Coach Dashboard */
 "section_athletes" = "Атлеты";
 "athletes_subtitle" = "Управляйте всеми в одном месте";
+"search_athletes_placeholder" = "Поиск атлета";
 "filter_active" = "Активные";
 "last_workout_volume_format" = "Тренировка: 2 дн. назад • Объём: 14 200 кг";
 "nav_dashboard" = "Главная";
 "active_badge" = "АКТИВЕН";
 "section_progress_coach" = "Прогресс";
+"coach_athlete_summary_empty" = "У этого атлета пока нет сохраненных тренировок.";
+"coach_summary_workouts" = "Тренировки";
+"coach_summary_avg_rating" = "Средняя оценка";
+"coach_summary_last" = "Последняя";
 "summary_label" = "Сводка";
 "placeholder_charts" = "Здесь будут графики и статистика.";
 "section_plan" = "План";
@@ -221,15 +253,44 @@
 /* Coach Programs */
 "nav_programs" = "Планы";
 "section_weekly_schedule" = "Расписание на неделю";
+"weekly_schedule_subtitle" = "Выберите неделю и распишите тренировочные дни";
 "no_plan_yet" = "Плана пока нет";
 "button_create_plan" = "Создать план";
+"button_add_workout_day" = "Добавить тренировочный день";
+"button_add_week" = "Добавить неделю";
+"week_number_format" = "Неделя %d";
+"no_days_in_selected_week" = "В этой неделе пока нет тренировочных дней.";
 
 /* Plan Builder */
 "workout_day_title" = "Тренировочный день";
 "workout_day_subtitle" = "Нажмите на упражнение для редактирования • Дата задаётся при планировании";
+"workout_name_label" = "Название тренировки";
+"workout_name_placeholder" = "Выберите или введите название";
+"workout_focus_label" = "Фокус тренировки";
+"workout_focus_placeholder" = "Выберите часть тела";
+"workout_title_upper_body" = "Верх тела";
+"workout_title_lower_body" = "Низ тела";
+"workout_title_full_body" = "Фулбоди";
+"workout_title_push" = "День Push";
+"workout_title_pull" = "День Pull";
+"workout_title_legs" = "День ног";
+"workout_title_cardio" = "Кардио";
+"workout_title_recovery" = "Восстановление";
+"workout_focus_upper_body" = "Верх тела";
+"workout_focus_lower_body" = "Низ тела";
+"workout_focus_full_body" = "Все тело";
+"workout_focus_chest_triceps" = "Грудь + Трицепс";
+"workout_focus_back_biceps" = "Спина + Бицепс";
+"workout_focus_shoulders" = "Плечи";
+"workout_focus_legs_glutes" = "Ноги + Ягодицы";
+"workout_focus_core" = "Кор";
+"workout_focus_cardio" = "Кардио";
+"workout_focus_mobility" = "Мобилити";
 "workout_number_format" = "Тренировка %d";
 "date_label" = "Дата";
 "button_add" = "Добавить";
+"button_delete_day" = "Удалить день";
+"button_delete_exercise" = "Удалить упражнение";
 "button_send_update" = "Отправить обновление атлету";
 "button_send_update_short" = "Отправить";
 "update_sent" = "Обновление отправлено";
@@ -246,8 +307,19 @@
 "stepper_reps" = "Повторения";
 "stepper_weight_kg" = "Вес (кг)";
 "stepper_rest_s" = "Отдых (с)";
+"exercise_name_not_exact_hint" = "Печатайте и выбирайте точное упражнение из подсказок для правильной иконки и полей.";
+"exercise_weight_not_required" = "Для этого типа упражнения вес не требуется.";
+"exercise_video_link_label" = "Ссылка на технику (видео)";
+"exercise_video_link_placeholder" = "https://youtube.com/...";
+"exercise_video_link_optional_hint" = "Необязательно. Поле можно оставить пустым.";
+"exercise_video_pill" = "видео";
+"exercise_watch_technique" = "Смотреть технику";
+"exercise_open_video" = "Открыть видео упражнения";
 "section_recent_updates" = "Недавние обновления";
 "recent_updates_subtitle" = "Что увидят атлеты";
+"coach_no_workout_summaries" = "Пока нет сводок тренировок от атлетов.";
+"coach_summary_overview_format" = "%d подходов • %d кг • оценка атлета %d/5";
+"coach_summary_note_format" = "Заметка атлета: %@";
 "change_log" = "История изменений";
 "updates_preview_placeholder" = "Здесь будет превью отправленных обновлений. Пока заглушка.";
 "nav_updates" = "Обновления";
@@ -266,6 +338,8 @@
 "expires_format" = "Действует до %@";
 "button_generate_code" = "Создать код";
 "button_generate_new_code" = "Создать новый код";
+"button_copy_code" = "Скопировать код";
+"button_copied" = "Скопировано";
 "nav_invite_code_coach" = "Код приглашения";
 
 /* Notifications */
@@ -281,10 +355,17 @@
 "watch_nav_live" = "Тренировка";
 "watch_set_format" = "Подход %d / %d";
 "watch_reps_kg" = "%d повт. • %d кг";
+"watch_reps_only" = "%d повт.";
 "watch_done" = "Готово";
 "watch_nav_rest" = "Отдых";
 "watch_skip" = "Пропустить";
 "watch_nav_finish" = "Конец";
+
+/* Live Activity / Dynamic Island */
+"live_activity_rest" = "Отдых";
+"live_activity_active" = "Активно";
+"live_activity_completed" = "Готово";
+"live_activity_next_exercise" = "След. упр.";
 
 /* Common */
 "days" = "дней";

@@ -1,0 +1,9 @@
+/* Live Activity */
+"live_activity_rest" = "Отдых";
+"live_activity_active" = "Активно";
+"live_activity_completed" = "Готово";
+"live_activity_next_exercise" = "След. упр.";
+"live_stat_sets" = "Подходы";
+"rest_seconds_format" = "%dс";
+"set_progress_format" = "Подход %d / %d";
+"exercise_progress_format" = "Упр. %d из %d";

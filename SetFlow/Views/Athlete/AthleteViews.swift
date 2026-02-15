@@ -35,9 +35,12 @@ enum AthleteTab: String, CaseIterable {
 struct AthleteTabRootView: View {
     let user: User
     @ObservedObject var appState: AppState
+    @ObservedObject private var prefs = AppPreferences.shared
 
     @StateObject private var homeViewModel: AthleteHomeViewModel
     @State private var selectedTab: AthleteTab = .home
+    @State private var showFirstRunOnboarding = false
+    @State private var didEvaluateOnboarding = false
 
     init(user: User, appState: AppState) {
         self.user = user
@@ -81,6 +84,17 @@ struct AthleteTabRootView: View {
         .onChange(of: selectedTab) { _, newTab in
             if newTab == .home { homeViewModel.load() }
         }
+        .onChange(of: homeViewModel.isLoading) { _, isLoading in
+            if !isLoading {
+                evaluateFirstRunOnboardingIfNeeded()
+            }
+        }
+        .fullScreenCover(isPresented: $showFirstRunOnboarding) {
+            AthleteFirstRunOnboardingView {
+                prefs.markFirstRunOnboardingSeen(role: .athlete, userId: user.id)
+                showFirstRunOnboarding = false
+            }
+        }
     }
 
     @ViewBuilder
@@ -109,6 +123,7 @@ struct AthleteTabRootView: View {
                             .foregroundColor(AppColors.textSecondary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
+                        WriteToCoachButton(user: user)
                     }
                     .padding(.vertical, AppSpacing.xxl)
                 }
@@ -118,6 +133,18 @@ struct AthleteTabRootView: View {
         }
         .navigationTitle("nav_workout")
         .navigationBarTitleDisplayMode(.inline)
+    }
+    
+    private func evaluateFirstRunOnboardingIfNeeded() {
+        guard !didEvaluateOnboarding else { return }
+        didEvaluateOnboarding = true
+        let alreadySeen = prefs.hasSeenFirstRunOnboarding(role: .athlete, userId: user.id)
+        guard !alreadySeen else { return }
+        if homeViewModel.history.isEmpty {
+            showFirstRunOnboarding = true
+        } else {
+            prefs.markFirstRunOnboardingSeen(role: .athlete, userId: user.id)
+        }
     }
 }
 
@@ -173,6 +200,7 @@ final class AthleteHomeViewModel: ObservableObject {
     @Published var plans: [WorkoutPlan] = []
     @Published var upcomingWorkouts: [WorkoutDay] = []
     @Published var history: [WorkoutLog] = []
+    @Published var isLoading: Bool = true
 
     init(user: User, planService: WorkoutPlanService, logService: WorkoutLogService) {
         self.user = user
@@ -234,6 +262,9 @@ final class AthleteHomeViewModel: ObservableObject {
     func load() {
         planListener?.remove()
         logListener?.remove()
+        if plans.isEmpty && history.isEmpty {
+            isLoading = true
+        }
         planListener = planService.plansForAthleteListener(athleteId: user.id) { [weak self] plans in
             self?.plans = plans
             let upcoming = plans.flatMap { $0.days }.sorted { $0.date < $1.date }
@@ -249,6 +280,7 @@ final class AthleteHomeViewModel: ObservableObject {
             } else {
                 NotificationScheduler.shared.cancelWorkoutReminders()
             }
+            self?.isLoading = false
         }
         logListener = logService.logsForAthleteListener(athleteId: user.id) { [weak self] logs in
             self?.history = logs
@@ -273,15 +305,19 @@ struct AthleteHomeView: View {
             )
             .ignoresSafeArea()
             
-            ScrollView {
-                VStack(alignment: .leading, spacing: AppSpacing.xl) {
-                    header
-                    todayHero
-                    weeklyStrip
-                    quickStats
-                    recentWorkouts
+            if viewModel.isLoading {
+                homeSkeleton
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: AppSpacing.xl) {
+                        header
+                        todayHero
+                        weeklyStrip
+                        quickStats
+                        recentWorkouts
+                    }
+                    .padding(.vertical, AppSpacing.lg)
                 }
-                .padding(.vertical, AppSpacing.lg)
             }
         }
         .navigationTitle("")
@@ -300,6 +336,40 @@ struct AthleteHomeView: View {
                     Image(systemName: "clock.arrow.circlepath")
                 }
             }
+        }
+    }
+    
+    private var homeSkeleton: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    SkeletonBar(width: 180, height: 28)
+                    SkeletonBar(width: 240, height: 14)
+                }
+                .padding(.horizontal, AppSpacing.lg)
+                
+                GlassCard(cornerRadius: AppTheme.Corners.lg) {
+                    VStack(alignment: .leading, spacing: AppSpacing.md) {
+                        SkeletonBar(width: 160, height: 18)
+                        SkeletonBar(width: 240, height: 12)
+                        SkeletonBar(width: 120, height: 12)
+                    }
+                    .padding(.vertical, AppSpacing.sm)
+                }
+                .padding(.horizontal, AppSpacing.lg)
+                
+                HStack(spacing: AppSpacing.md) {
+                    SkeletonCard()
+                    SkeletonCard()
+                }
+                .padding(.horizontal, AppSpacing.lg)
+                
+                SkeletonCard()
+                    .padding(.horizontal, AppSpacing.lg)
+                SkeletonCard()
+                    .padding(.horizontal, AppSpacing.lg)
+            }
+            .padding(.vertical, AppSpacing.lg)
         }
     }
     
@@ -322,7 +392,7 @@ struct AthleteHomeView: View {
                 } label: {
                     WorkoutHeroCard(
                         title: today.title,
-                        subtitle: String(format: String(localized: "today_focus_format"), today.focus),
+                        subtitle: String(format: String(localized: "today_focus_format"), today.focus.isEmpty ? String(localized: "workout_focus_not_set") : today.focus),
                         detail: "\(today.exercises.count) exercises",
                         progress: viewModel.todayProgress
                     )
@@ -331,12 +401,13 @@ struct AthleteHomeView: View {
                 .buttonStyle(.plain)
             } else {
                 GlassCard {
-                    VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    VStack(alignment: .leading, spacing: AppSpacing.md) {
                         Text("no_workout_today")
                             .font(AppTypography.headline)
                         Text("no_workout_today_desc")
                             .font(AppTypography.body)
                             .foregroundColor(AppColors.textSecondary)
+                        WriteToCoachButton(user: viewModel.user)
                     }
                 }
                 .padding(.horizontal, AppSpacing.lg)
@@ -347,7 +418,50 @@ struct AthleteHomeView: View {
     private var weeklyStrip: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
             SectionHeader(title: String(localized: "section_this_week"), actionTitle: nil, action: nil)
-            WeeklyCalendarStrip(selectedDate: $selectedDate)
+            WeeklyCalendarStrip(
+                selectedDate: $selectedDate,
+                markedDates: viewModel.upcomingWorkouts.map(\.date)
+            )
+            selectedDayWorkoutCard
+        }
+    }
+
+    private var selectedDayWorkoutCard: some View {
+        let selectedWorkout = viewModel.upcomingWorkouts.first {
+            Calendar.current.isDate($0.date, inSameDayAs: selectedDate)
+        }
+        return Group {
+            if let workout = selectedWorkout {
+                NavigationLink {
+                    WorkoutDetailView(workoutDay: workout, athleteId: viewModel.user.id)
+                } label: {
+                    GlassCard(cornerRadius: AppTheme.Corners.md) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(workout.title)
+                                    .font(AppTypography.headline)
+                                Text(workout.focus.isEmpty ? String(localized: "workout_focus_not_set") : workout.focus)
+                                    .font(AppTypography.footnote)
+                                    .foregroundColor(AppColors.textSecondary)
+                            }
+                            Spacer()
+                            Text(String(format: String(localized: "exercises_count_format"), workout.exercises.count))
+                                .font(AppTypography.caption)
+                                .foregroundColor(AppColors.textSecondary)
+                        }
+                    }
+                    .padding(.horizontal, AppSpacing.lg)
+                }
+                .buttonStyle(.plain)
+            } else {
+                GlassCard(cornerRadius: AppTheme.Corners.md) {
+                    Text("no_workout_selected_day")
+                        .font(AppTypography.footnote)
+                        .foregroundColor(AppColors.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.horizontal, AppSpacing.lg)
+            }
         }
     }
     
@@ -445,58 +559,229 @@ struct AthleteHomeView: View {
     }
 }
 
+struct AthleteFirstRunOnboardingView: View {
+    var onContinue: () -> Void
+    
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(red: 0.08, green: 0.10, blue: 0.16), Color(red: 0.03, green: 0.13, blue: 0.22)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+            
+            VStack(spacing: AppSpacing.xl) {
+                Spacer()
+                Image(systemName: "figure.strengthtraining.traditional")
+                    .font(.system(size: 44, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding()
+                    .background(Circle().fill(Color.white.opacity(0.14)))
+                
+                VStack(spacing: AppSpacing.md) {
+                    Text("first_run_athlete_title")
+                        .font(AppTypography.title1)
+                        .foregroundColor(.white)
+                    Text("first_run_athlete_message")
+                        .font(AppTypography.body)
+                        .foregroundColor(Color.white.opacity(0.85))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, AppSpacing.xl)
+                }
+                Spacer()
+                PrimaryActionButton(title: String(localized: "first_run_athlete_action")) {
+                    onContinue()
+                }
+                .padding(.horizontal, AppSpacing.lg)
+                .padding(.bottom, AppSpacing.xl)
+            }
+        }
+    }
+}
+
 // MARK: - Workout Detail
 
 struct WorkoutDetailView: View {
     let workoutDay: WorkoutDay
     var athleteId: String
+    @State private var showAllExercises = false
+
+    private var totalSets: Int {
+        workoutDay.exercises.reduce(0) { $0 + $1.sets }
+    }
+
+    /// Rough estimate: ~2.5 min per set (work + rest).
+    private var estimatedMinutes: Int {
+        max(5, Int(Double(totalSets) * 2.5))
+    }
+
+    private var canStart: Bool {
+        !workoutDay.exercises.isEmpty
+    }
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .bottom) {
             AppColors.background.ignoresSafeArea()
-            VStack(spacing: AppSpacing.lg) {
-                CardView {
-                    VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                        Text(workoutDay.title)
-                            .font(AppTypography.title2)
-                        Text(workoutDay.focus)
-                            .font(AppTypography.body)
-                            .foregroundColor(AppColors.textSecondary)
-                        Text(String(format: String(localized: "exercises_count_format"), workoutDay.exercises.count))
-                            .font(AppTypography.caption)
-                            .foregroundColor(AppColors.textSecondary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                    preflightBlock
+                    if !workoutDay.exercises.isEmpty {
+                        SectionHeader(title: String(localized: "section_exercises"), actionTitle: nil, action: nil)
+                        exercisesList
                     }
+                    Spacer(minLength: 100)
                 }
-                .padding(.horizontal, AppSpacing.lg)
-
-                SectionHeader(title: String(localized: "section_exercises"), actionTitle: nil, action: nil)
-
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ForEach(workoutDay.exercises) { exercise in
-                            ExerciseRow(exercise: exercise, weightDisplay: AppPreferences.shared.displayWeight(kg: exercise.weight))
-                            Divider()
-                        }
-                    }
-                    .padding(.horizontal, AppSpacing.lg)
-                }
-
-                NavigationLink {
-                    LiveWorkoutView(workoutDay: workoutDay, athleteId: athleteId)
-                } label: {
-                    PrimaryButtonLabel(title: String(localized: "button_start_workout"))
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, AppSpacing.lg)
-                .padding(.bottom, AppSpacing.lg)
+                .padding(.vertical, AppSpacing.lg)
             }
+            startButtonOverlay
         }
         .navigationTitle("nav_workout")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showAllExercises) {
+            NavigationStack {
+                allExercisesSheet
+            }
+        }
+    }
+
+    private var preflightBlock: some View {
+        GlassCard(cornerRadius: AppTheme.Corners.lg) {
+            VStack(alignment: .leading, spacing: AppSpacing.md) {
+                Text(workoutDay.title)
+                    .font(AppTypography.title2)
+                Text(workoutDay.focus)
+                    .font(AppTypography.body)
+                    .foregroundColor(AppColors.textSecondary)
+                HStack(spacing: AppSpacing.lg) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "square.stack.3d.up.fill")
+                            .font(.system(size: 12))
+                        Text(String(format: String(localized: "preflight_sets_format"), totalSets))
+                            .font(AppTypography.footnote)
+                    }
+                    .foregroundColor(AppColors.textSecondary)
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock.fill")
+                            .font(.system(size: 12))
+                        Text(String(format: String(localized: "preflight_est_duration"), estimatedMinutes))
+                            .font(AppTypography.footnote)
+                    }
+                    .foregroundColor(AppColors.textSecondary)
+                }
+                if !workoutDay.exercises.isEmpty {
+                    HStack(spacing: AppSpacing.sm) {
+                        ForEach(workoutDay.exercises.prefix(4)) { exercise in
+                            HStack(spacing: 4) {
+                                Image(systemName: exercise.iconName)
+                                    .font(.system(size: 10))
+                                    .foregroundColor(AppColors.accent.opacity(0.9))
+                                Text(exercise.name)
+                                    .font(AppTypography.caption)
+                                    .foregroundColor(AppColors.textSecondary)
+                                    .lineLimit(1)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(AppColors.accent.opacity(0.1)))
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, AppSpacing.lg)
+    }
+
+    private var exercisesList: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(workoutDay.exercises.prefix(3))) { exercise in
+                exerciseRowWithVideo(exercise)
+                Divider()
+            }
+            if workoutDay.exercises.count > 3 {
+                Button {
+                    showAllExercises = true
+                } label: {
+                    Text("button_view_all_exercises")
+                        .font(AppTypography.footnote)
+                        .foregroundColor(AppColors.accentSecondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, AppSpacing.md)
+            }
+        }
+        .padding(.horizontal, AppSpacing.lg)
+    }
+
+    private var allExercisesSheet: some View {
+        List {
+            ForEach(workoutDay.exercises) { exercise in
+                exerciseRowWithVideo(exercise)
+            }
+        }
+        .navigationTitle(workoutDay.title)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    @ViewBuilder
+    private func exerciseRowWithVideo(_ exercise: Exercise) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            ExerciseRow(exercise: exercise, weightDisplay: AppPreferences.shared.displayWeight(kg: exercise.weight))
+            if let tutorialURL = exercise.tutorialURL,
+               let url = URL(string: tutorialURL),
+               !tutorialURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Link(destination: url) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "play.rectangle.fill")
+                        Text("exercise_watch_technique")
+                    }
+                    .font(AppTypography.caption)
+                    .foregroundColor(AppColors.accentSecondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var startButtonOverlay: some View {
+        VStack {
+            Spacer()
+            Group {
+                if canStart {
+                    NavigationLink {
+                        LiveWorkoutView(workoutDay: workoutDay, athleteId: athleteId)
+                    } label: {
+                        PrimaryActionButtonLabel(title: String(localized: "button_start_workout"), icon: "play.fill")
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    GlassCard(cornerRadius: AppTheme.Corners.lg) {
+                        VStack(spacing: AppSpacing.sm) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 28))
+                                .foregroundColor(AppColors.warning)
+                            Text("no_exercises_cant_start")
+                                .font(AppTypography.headline)
+                            Text("no_exercises_cant_start_desc")
+                                .font(AppTypography.footnote)
+                                .foregroundColor(AppColors.textSecondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(AppSpacing.lg)
+                    }
+                }
+            }
+            .padding(.horizontal, AppSpacing.lg)
+            .padding(.bottom, AppSpacing.lg)
+        }
     }
 }
 
 // MARK: - Live Workout
+
+typealias LiveActivityCallback = () -> Void
 
 final class LiveWorkoutViewModel: ObservableObject {
     @Published var currentExerciseIndex: Int = 0
@@ -508,9 +793,16 @@ final class LiveWorkoutViewModel: ObservableObject {
     @Published var workoutStartTime: Date = Date()
     
     private var restTimer: Timer?
-    private var restIsBetweenExercises: Bool = false
+    private var restIsBetweenExercisesInternal: Bool = false
     
     let workoutDay: WorkoutDay
+
+    /// Callbacks for Live Activity updates. Set by LiveWorkoutView.
+    var onSetDone: LiveActivityCallback?
+    var onExerciseChange: LiveActivityCallback?
+    var onRestUpdate: LiveActivityCallback?
+    var onComplete: LiveActivityCallback?
+    var onEnd: LiveActivityCallback?
     
     init(workoutDay: WorkoutDay) {
         self.workoutDay = workoutDay
@@ -529,23 +821,38 @@ final class LiveWorkoutViewModel: ObservableObject {
     var isWorkoutComplete: Bool {
         currentExerciseIndex >= workoutDay.exercises.count
     }
+
+    var restIsBetweenExercises: Bool {
+        restIsBetweenExercisesInternal
+    }
+
+    var totalSetsCount: Int {
+        workoutDay.exercises.reduce(0) { $0 + $1.sets }
+    }
+
+    var setsRemaining: Int {
+        totalSetsCount - completedSetsCount
+    }
     
     @MainActor
     func doneSet() {
         guard let ex = currentExercise else { return }
         HapticManager.impact()
         completedSetsCount += 1
-        totalVolume += ex.weight * Double(ex.reps)
+        if ex.requiresWeight {
+            totalVolume += ex.weight * Double(ex.reps)
+        }
         if currentSet >= ex.sets {
             if currentExerciseIndex + 1 < workoutDay.exercises.count {
-                restIsBetweenExercises = true
+                restIsBetweenExercisesInternal = true
                 startRest(afterRest: { [weak self] in self?.advanceToNextExercise() })
             } else {
                 currentExerciseIndex += 1
+                onComplete?()
             }
         } else {
             currentSet += 1
-            restIsBetweenExercises = false
+            restIsBetweenExercisesInternal = false
             startRest(afterRest: { })
         }
     }
@@ -559,6 +866,7 @@ final class LiveWorkoutViewModel: ObservableObject {
         }
         isResting = true
         restRemaining = ex.restSeconds
+        onSetDone?()
         restTimer?.invalidate()
         restTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -571,6 +879,7 @@ final class LiveWorkoutViewModel: ObservableObject {
     @MainActor
     private func tickRest(afterRest: @escaping () -> Void) {
         restRemaining -= 1
+        onRestUpdate?()
         if restRemaining <= 3, restRemaining > 0 {
             HapticManager.impact()
         }
@@ -588,19 +897,37 @@ final class LiveWorkoutViewModel: ObservableObject {
         restTimer?.invalidate()
         restTimer = nil
         isResting = false
-        if restIsBetweenExercises {
+        if restIsBetweenExercisesInternal {
             advanceToNextExercise()
+        } else {
+            onSetDone?()
         }
+    }
+
+    @MainActor
+    func addRestSeconds(_ seconds: Int) {
+        guard isResting else { return }
+        restRemaining = min(300, restRemaining + seconds)
+        onRestUpdate?()
     }
     
     @MainActor
     private func advanceToNextExercise() {
         currentExerciseIndex += 1
         currentSet = 1
+        onExerciseChange?()
     }
     
     func buildLog(athleteId: String) -> WorkoutLog {
         let durationMinutes = max(1, Int(Date().timeIntervalSince(workoutStartTime) / 60))
+        let feedbacks = workoutDay.exercises.map {
+            ExerciseFeedback(
+                id: $0.id,
+                exerciseName: $0.name,
+                difficulty: 3,
+                note: nil
+            )
+        }
         return WorkoutLog(
             id: "temp-\(UUID().uuidString)",
             athleteId: athleteId,
@@ -609,7 +936,8 @@ final class LiveWorkoutViewModel: ObservableObject {
             durationMinutes: durationMinutes,
             totalSets: completedSetsCount,
             totalVolume: totalVolume,
-            rating: 5
+            rating: 5,
+            exerciseFeedbacks: feedbacks
         )
     }
 }
@@ -619,105 +947,290 @@ struct LiveWorkoutView: View {
     @ObservedObject private var prefs = AppPreferences.shared
     let athleteId: String
     @State private var showSummary = false
+    @State private var showEndWorkoutConfirmation = false
 
     init(workoutDay: WorkoutDay, athleteId: String) {
         self.viewModel = LiveWorkoutViewModel(workoutDay: workoutDay)
         self.athleteId = athleteId
     }
 
+    private func startLiveActivityIfNeeded() {
+        if #available(iOS 16.2, *) {
+            guard let ex = viewModel.currentExercise else { return }
+            WorkoutLiveActivityService.start(
+                workoutTitle: viewModel.workoutDay.title,
+                totalSets: viewModel.totalSetsCount,
+                currentExerciseName: ex.name,
+                currentExerciseIndex: viewModel.currentExerciseIndex + 1,
+                totalExercises: viewModel.workoutDay.exercises.count,
+                currentSet: viewModel.currentSet,
+                setsForCurrentExercise: ex.sets,
+                completedSetsCount: viewModel.completedSetsCount,
+                totalVolume: viewModel.totalVolume
+            )
+        }
+    }
+
+    private func updateLiveActivitySetDone() {
+        if #available(iOS 16.2, *) {
+            guard let ex = viewModel.currentExercise else { return }
+            WorkoutLiveActivityService.updateForSetDone(
+                currentExerciseName: ex.name,
+                currentExerciseIndex: viewModel.currentExerciseIndex + 1,
+                totalExercises: viewModel.workoutDay.exercises.count,
+                currentSet: viewModel.currentSet,
+                setsForCurrentExercise: ex.sets,
+                completedSetsCount: viewModel.completedSetsCount,
+                totalSetsCount: viewModel.totalSetsCount,
+                restRemaining: viewModel.restRemaining,
+                totalVolume: viewModel.totalVolume
+            )
+        }
+    }
+
+    private func updateLiveActivityExerciseChange() {
+        if #available(iOS 16.2, *) {
+            guard let ex = viewModel.currentExercise else { return }
+            WorkoutLiveActivityService.updateForExerciseChange(
+                currentExerciseName: ex.name,
+                currentExerciseIndex: viewModel.currentExerciseIndex + 1,
+                totalExercises: viewModel.workoutDay.exercises.count,
+                currentSet: viewModel.currentSet,
+                setsForCurrentExercise: ex.sets,
+                completedSetsCount: viewModel.completedSetsCount,
+                totalSetsCount: viewModel.totalSetsCount,
+                restRemaining: viewModel.restRemaining,
+                totalVolume: viewModel.totalVolume
+            )
+        }
+    }
+
+    private func updateLiveActivityRest() {
+        if #available(iOS 16.2, *) {
+            guard let ex = viewModel.currentExercise else { return }
+            WorkoutLiveActivityService.updateRest(
+                currentExerciseName: ex.name,
+                currentExerciseIndex: viewModel.currentExerciseIndex + 1,
+                totalExercises: viewModel.workoutDay.exercises.count,
+                currentSet: viewModel.currentSet,
+                setsForCurrentExercise: ex.sets,
+                completedSetsCount: viewModel.completedSetsCount,
+                totalSetsCount: viewModel.totalSetsCount,
+                restRemaining: viewModel.restRemaining,
+                totalVolume: viewModel.totalVolume
+            )
+        }
+    }
+
+    private func completeLiveActivity() {
+        if #available(iOS 16.2, *) {
+            WorkoutLiveActivityService.complete(
+                completedSetsCount: viewModel.completedSetsCount,
+                totalSetsCount: viewModel.totalSetsCount,
+                totalVolume: viewModel.totalVolume
+            )
+        }
+    }
+
+    private func endLiveActivityIfNeeded() {
+        if #available(iOS 16.2, *) {
+            WorkoutLiveActivityService.endIfNeeded()
+        }
+    }
+
     var body: some View {
         ZStack {
             AppColors.background.ignoresSafeArea()
-            VStack(spacing: AppSpacing.xl) {
-                if viewModel.isWorkoutComplete {
-                    workoutCompleteView
-                } else if let ex = viewModel.currentExercise {
-                    VStack(spacing: AppSpacing.sm) {
-                        Text(viewModel.workoutDay.title)
-                            .font(AppTypography.headline)
-                        Text(String(format: String(localized: "exercise_progress_format"), viewModel.currentExerciseIndex + 1, viewModel.workoutDay.exercises.count))
-                            .font(AppTypography.footnote)
-                            .foregroundColor(AppColors.textSecondary)
-                    }
-
-                    CardView {
-                        VStack(spacing: AppSpacing.lg) {
-                            Text(ex.name)
-                                .font(AppTypography.title2)
-                            Text("\(ex.sets)x\(ex.reps)  •  \(prefs.displayWeight(kg: ex.weight))")
+            VStack(spacing: 0) {
+                if !viewModel.isWorkoutComplete {
+                    liveStatusBar
+                }
+                ScrollView {
+                    VStack(spacing: AppSpacing.xl) {
+                        if viewModel.isWorkoutComplete {
+                            workoutCompleteView
+                        } else if let ex = viewModel.currentExercise {
+                            exerciseContent(ex: ex)
+                            if viewModel.isResting {
+                                restSection(ex: ex)
+                            }
+                            actionButtons(ex: ex)
+                        } else {
+                            Text("no_exercises")
                                 .font(AppTypography.body)
                                 .foregroundColor(AppColors.textSecondary)
+                                .padding(.top, AppSpacing.xxl)
+                        }
 
-                            ZStack {
-                                Circle()
-                                    .stroke(AppColors.progressBackground, lineWidth: 12)
-                                Circle()
-                                    .trim(from: 0, to: CGFloat(viewModel.progress))
-                                    .stroke(AppColors.accent, style: StrokeStyle(lineWidth: 12, lineCap: .round))
-                                    .rotationEffect(.degrees(-90))
-                                    .animation(.easeInOut(duration: 0.3), value: viewModel.progress)
-                                VStack {
-                                    Text(String(format: String(localized: "set_progress_format"), viewModel.currentSet, ex.sets))
-                                        .font(AppTypography.headline)
-                                    Text("\(Int(viewModel.progress * 100))%")
-                                        .font(AppTypography.caption)
-                                        .foregroundColor(AppColors.textSecondary)
-                                }
+                        if !viewModel.isWorkoutComplete && viewModel.completedSetsCount > 0 {
+                            Button {
+                                showEndWorkoutConfirmation = true
+                            } label: {
+                                Text("button_end_workout_early")
+                                    .font(AppTypography.footnote)
+                                    .foregroundColor(AppColors.textSecondary)
+                                    .padding(.vertical, AppSpacing.sm)
                             }
-                            .frame(height: 180)
+                            .padding(.bottom, AppSpacing.lg)
                         }
                     }
-                    .padding(.horizontal, AppSpacing.lg)
-
-                    if viewModel.isResting {
-                        VStack(spacing: AppSpacing.sm) {
-                            Text("rest_label")
-                                .font(AppTypography.headline)
-                            Text(String(format: String(localized: "rest_seconds_format"), viewModel.restRemaining))
-                                .font(AppTypography.largeTitle)
-                            CustomProgressBar(progress: Double(viewModel.restRemaining) / Double(ex.restSeconds))
-                                .frame(height: 12)
-                                .padding(.horizontal, AppSpacing.lg)
-                        }
-                        .transition(.opacity.combined(with: .move(edge: .bottom)))
-                    }
-
-                    HStack(spacing: AppSpacing.md) {
-                        if viewModel.isResting {
-                            PrimaryButton(title: String(localized: "button_skip_rest"), fullWidth: true) {
-                                viewModel.skipRest()
-                            }
-                        } else {
-                            PrimaryButton(title: String(localized: "button_done_set"), fullWidth: true) {
-                                viewModel.doneSet()
-                            }
-                        }
-                    }
-                    .padding(.horizontal, AppSpacing.lg)
-                } else {
-                    Text("no_exercises")
-                        .font(AppTypography.body)
-                        .foregroundColor(AppColors.textSecondary)
-                }
-
-                if !viewModel.isWorkoutComplete && viewModel.completedSetsCount > 0 {
-                    Button {
-                        showSummary = true
-                    } label: {
-                        Text("button_end_workout_early")
-                            .font(AppTypography.footnote)
-                            .foregroundColor(AppColors.textSecondary)
-                            .padding(.vertical, AppSpacing.sm)
-                    }
-                    .padding(.bottom, AppSpacing.lg)
                 }
             }
         }
         .navigationTitle("nav_live")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            startLiveActivityIfNeeded()
+            viewModel.onSetDone = updateLiveActivitySetDone
+            viewModel.onExerciseChange = updateLiveActivityExerciseChange
+            viewModel.onRestUpdate = updateLiveActivityRest
+            viewModel.onComplete = completeLiveActivity
+        }
+        .onDisappear {
+            viewModel.onSetDone = nil
+            viewModel.onExerciseChange = nil
+            viewModel.onRestUpdate = nil
+            viewModel.onComplete = nil
+            endLiveActivityIfNeeded()
+        }
         .navigationDestination(isPresented: $showSummary) {
             WorkoutSummaryView(log: viewModel.buildLog(athleteId: athleteId))
         }
+        .confirmationDialog(String(localized: "end_workout_confirm_title"), isPresented: $showEndWorkoutConfirmation) {
+            Button(String(localized: "button_end_workout_early"), role: .destructive) {
+                completeLiveActivity()
+                showSummary = true
+            }
+            Button(String(localized: "button_cancel"), role: .cancel) { }
+        } message: {
+            Text(String(format: String(localized: "end_workout_confirm_message"), viewModel.completedSetsCount))
+        }
+    }
+
+    private var liveStatusBar: some View {
+        GlassCard(cornerRadius: AppTheme.Corners.md) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(viewModel.completedSetsCount)/\(viewModel.totalSetsCount)")
+                        .font(AppTypography.headline)
+                    Text("live_stat_sets")
+                        .font(AppTypography.caption)
+                        .foregroundColor(AppColors.textSecondary)
+                }
+                Spacer()
+                Text(String(format: String(localized: "exercise_progress_format"), viewModel.currentExerciseIndex + 1, viewModel.workoutDay.exercises.count))
+                    .font(AppTypography.footnote)
+                    .foregroundColor(AppColors.textSecondary)
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("\(viewModel.setsRemaining)")
+                        .font(AppTypography.headline)
+                    Text("live_stat_remaining")
+                        .font(AppTypography.caption)
+                        .foregroundColor(AppColors.textSecondary)
+                }
+                .frame(width: 60, alignment: .trailing)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, AppSpacing.lg)
+        .padding(.top, AppSpacing.sm)
+    }
+
+    private func exerciseContent(ex: Exercise) -> some View {
+        VStack(spacing: AppSpacing.lg) {
+            Text(viewModel.workoutDay.title)
+                .font(AppTypography.headline)
+                .padding(.top, AppSpacing.lg)
+            CardView {
+                VStack(spacing: AppSpacing.lg) {
+                    Text(ex.name)
+                        .font(AppTypography.title2)
+                    Text(exercisePrescriptionText(ex))
+                        .font(AppTypography.body)
+                        .foregroundColor(AppColors.textSecondary)
+
+                    ZStack {
+                        Circle()
+                            .stroke(AppColors.progressBackground, lineWidth: 12)
+                        Circle()
+                            .trim(from: 0, to: CGFloat(viewModel.progress))
+                            .stroke(AppColors.accent, style: StrokeStyle(lineWidth: 12, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                            .animation(.easeInOut(duration: 0.3), value: viewModel.progress)
+                        VStack {
+                            Text(String(format: String(localized: "set_progress_format"), viewModel.currentSet, ex.sets))
+                                .font(AppTypography.headline)
+                            Text("\(Int(viewModel.progress * 100))%")
+                                .font(AppTypography.caption)
+                                .foregroundColor(AppColors.textSecondary)
+                        }
+                    }
+                    .frame(height: 180)
+                }
+            }
+        }
+        .padding(.horizontal, AppSpacing.lg)
+    }
+
+    private func exercisePrescriptionText(_ exercise: Exercise) -> String {
+        if exercise.requiresWeight {
+            return "\(exercise.sets)x\(exercise.reps)  •  \(prefs.displayWeight(kg: exercise.weight))"
+        }
+        return "\(exercise.sets)x\(exercise.reps)"
+    }
+
+    private func restSection(ex: Exercise) -> some View {
+        VStack(spacing: AppSpacing.md) {
+            Text(viewModel.restIsBetweenExercises ? String(localized: "rest_between_exercises") : String(localized: "rest_between_sets"))
+                .font(AppTypography.caption)
+                .foregroundColor(AppColors.accent)
+                .textCase(.uppercase)
+            Text(String(format: String(localized: "rest_seconds_format"), viewModel.restRemaining))
+                .font(.system(size: 56, weight: .bold, design: .rounded))
+                .foregroundColor(AppColors.textPrimary)
+                .monospacedDigit()
+            CustomProgressBar(progress: Double(viewModel.restRemaining) / Double(max(1, ex.restSeconds)))
+                .frame(height: 8)
+                .padding(.horizontal, AppSpacing.xl)
+            HStack(spacing: AppSpacing.md) {
+                SecondaryButton(title: String(localized: "button_add_10_sec"), fullWidth: false) {
+                    viewModel.addRestSeconds(10)
+                }
+                PrimaryButton(title: String(localized: "button_skip_rest"), fullWidth: true) {
+                    viewModel.skipRest()
+                }
+            }
+        }
+        .padding(.vertical, AppSpacing.lg)
+        .padding(.horizontal, AppSpacing.lg)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.Corners.lg, style: .continuous)
+                .fill(AppColors.backgroundElevated.opacity(0.8))
+        )
+        .padding(.horizontal, AppSpacing.lg)
+        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+    }
+
+    private func actionButtons(ex: Exercise) -> some View {
+        Group {
+            VStack(spacing: AppSpacing.sm) {
+                if !viewModel.isResting {
+                    PrimaryButton(title: String(localized: "button_done_set"), fullWidth: true) {
+                        viewModel.doneSet()
+                    }
+                }
+                if let tutorialURL = ex.tutorialURL,
+                   let url = URL(string: tutorialURL),
+                   !tutorialURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Link(destination: url) {
+                        SecondaryButtonLabel(title: String(localized: "exercise_open_video"))
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, AppSpacing.lg)
+        .padding(.top, AppSpacing.md)
     }
 
     private var workoutCompleteView: some View {
@@ -747,56 +1260,129 @@ struct WorkoutSummaryView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var prefs = AppPreferences.shared
     @State private var rating: Int
+    @State private var exerciseFeedbacks: [ExerciseFeedback]
     @State private var isSaving = false
     @State private var saveError: String?
+    @State private var showSavedFeedback = false
 
     init(log: WorkoutLog) {
         self.log = log
         _rating = State(initialValue: log.rating)
+        _exerciseFeedbacks = State(initialValue: log.exerciseFeedbacks)
     }
 
     var body: some View {
         ZStack {
             AppColors.background.ignoresSafeArea()
-            VStack(spacing: AppSpacing.xl) {
-                Spacer(minLength: AppSpacing.xl)
+            ScrollView {
+                VStack(spacing: AppSpacing.xl) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 64))
+                        .foregroundColor(AppColors.accent)
+                        .symbolEffect(.bounce, value: showSavedFeedback)
 
-                Image(systemName: "checkmark.seal.fill")
-                    .font(.system(size: 60))
-                    .foregroundColor(AppColors.accent)
-                    .padding(.bottom, AppSpacing.md)
+                    Text("workout_complete")
+                        .font(AppTypography.title1)
 
-                Text("workout_complete")
-                    .font(AppTypography.title2)
+                    Text(log.workoutTitle)
+                        .font(AppTypography.body)
+                        .foregroundColor(AppColors.textSecondary)
 
-                Text(log.workoutTitle)
-                    .font(AppTypography.body)
-                    .foregroundColor(AppColors.textSecondary)
-
-                CardView {
-                    VStack(alignment: .leading, spacing: AppSpacing.md) {
-                        summaryRow(label: String(localized: "summary_duration"), value: String(format: String(localized: "duration_min_format"), log.durationMinutes))
-                        summaryRow(label: String(localized: "summary_total_sets"), value: "\(log.totalSets)")
-                        summaryRow(label: String(localized: "summary_volume"), value: prefs.displayVolume(kg: log.totalVolume))
-                        HStack {
-                            Text("summary_rating")
-                                .font(AppTypography.body)
-                            Spacer()
-                            ratingPicker
+                    GlassCard(cornerRadius: AppTheme.Corners.lg) {
+                        VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                            summaryRow(label: String(localized: "summary_duration"), value: String(format: String(localized: "duration_min_format"), log.durationMinutes))
+                            Divider()
+                            summaryRow(label: String(localized: "summary_total_sets"), value: "\(log.totalSets)")
+                            Divider()
+                            summaryRow(label: String(localized: "summary_volume"), value: prefs.displayVolume(kg: log.totalVolume))
+                            Divider()
+                            HStack {
+                                Text("summary_rating")
+                                    .font(AppTypography.body)
+                                Spacer()
+                                ratingPicker
+                            }
                         }
                     }
-                }
-                .padding(.horizontal, AppSpacing.lg)
+                    .padding(.horizontal, AppSpacing.lg)
 
-                if let err = saveError {
-                    Text(err)
-                        .font(AppTypography.footnote)
-                        .foregroundColor(AppColors.danger)
-                        .padding(.horizontal)
-                }
+                    if !exerciseFeedbacks.isEmpty {
+                        GlassCard(cornerRadius: AppTheme.Corners.lg) {
+                            VStack(alignment: .leading, spacing: AppSpacing.md) {
+                                Text("summary_exercise_feedback")
+                                    .font(AppTypography.headline)
+                                ForEach(Array(exerciseFeedbacks.enumerated()), id: \.element.id) { index, feedback in
+                                    VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                                        Text(feedback.exerciseName)
+                                            .font(AppTypography.callout.weight(.semibold))
+                                        HStack {
+                                            Text("summary_difficulty")
+                                                .font(AppTypography.caption)
+                                                .foregroundColor(AppColors.textSecondary)
+                                            Spacer()
+                                            Stepper(value: Binding(
+                                                get: { exerciseFeedbacks[index].difficulty },
+                                                set: { exerciseFeedbacks[index].difficulty = min(5, max(1, $0)) }
+                                            ), in: 1...5) {
+                                                Text(String(format: String(localized: "difficulty_value_format"), exerciseFeedbacks[index].difficulty))
+                                                    .font(AppTypography.caption)
+                                                    .foregroundColor(AppColors.textPrimary)
+                                            }
+                                        }
+                                        TextField(String(localized: "summary_exercise_note_placeholder"), text: Binding(
+                                            get: { exerciseFeedbacks[index].note ?? "" },
+                                            set: {
+                                                let trimmed = $0.trimmingCharacters(in: .whitespacesAndNewlines)
+                                                exerciseFeedbacks[index].note = trimmed.isEmpty ? nil : trimmed
+                                            }
+                                        ))
+                                        .font(AppTypography.footnote)
+                                        .textInputAutocapitalization(.sentences)
+                                        .padding(.vertical, 6)
+                                        .padding(.horizontal, 8)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: AppTheme.Corners.md, style: .continuous)
+                                                .fill(AppColors.backgroundElevated.opacity(0.7))
+                                        )
+                                    }
+                                    if index < exerciseFeedbacks.count - 1 {
+                                        Divider()
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, AppSpacing.lg)
+                    }
 
+                    if let err = saveError {
+                        GlassCard(cornerRadius: AppTheme.Corners.md) {
+                            VStack(spacing: AppSpacing.sm) {
+                                HStack {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundColor(AppColors.danger)
+                                    Text(String(localized: "save_error_title"))
+                                        .font(AppTypography.headline)
+                                }
+                                Text(err)
+                                    .font(AppTypography.footnote)
+                                    .foregroundColor(AppColors.textSecondary)
+                                    .multilineTextAlignment(.center)
+                                SecondaryButton(title: String(localized: "save_error_retry"), fullWidth: true) {
+                                    saveAndGoHome()
+                                }
+                            }
+                            .padding(AppSpacing.md)
+                        }
+                        .padding(.horizontal, AppSpacing.lg)
+                    }
+
+                    Spacer(minLength: 100)
+                }
+                .padding(.vertical, AppSpacing.xl)
+            }
+
+            VStack {
                 Spacer()
-
                 PrimaryButton(title: isSaving ? String(localized: "saving") : String(localized: "button_save_go_home"), fullWidth: true) {
                     saveAndGoHome()
                 }
@@ -835,7 +1421,8 @@ struct WorkoutSummaryView: View {
             durationMinutes: log.durationMinutes,
             totalSets: log.totalSets,
             totalVolume: log.totalVolume,
-            rating: rating
+            rating: rating,
+            exerciseFeedbacks: exerciseFeedbacks
         )
         let service = appState.logService
         let popHome = popToHome
@@ -843,6 +1430,8 @@ struct WorkoutSummaryView: View {
             do {
                 try await service.saveLog(logToSave)
                 HapticManager.success()
+                showSavedFeedback = true
+                try? await Task.sleep(nanoseconds: 400_000_000)
                 popHome?()
             } catch {
                 saveError = error.localizedDescription
@@ -864,17 +1453,42 @@ struct WorkoutSummaryView: View {
 
 // MARK: - History
 
+enum HistoryFilter: String, CaseIterable {
+    case week
+    case month
+    case all
+
+    var title: String {
+        switch self {
+        case .week: return String(localized: "history_filter_week")
+        case .month: return String(localized: "history_filter_month")
+        case .all: return String(localized: "history_filter_all")
+        }
+    }
+}
+
 struct HistoryView: View {
     let logs: [WorkoutLog]
     @ObservedObject private var prefs = AppPreferences.shared
+    @State private var filter: HistoryFilter = .week
 
-    private var volumeThisWeek: Double {
+    private var filteredLogs: [WorkoutLog] {
         let cal = Calendar.current
         let now = Date()
-        guard let weekStart = cal.date(from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)) else { return 0 }
-        return logs
-            .filter { cal.startOfDay(for: $0.date) >= weekStart }
-            .reduce(0) { $0 + $1.totalVolume }
+        switch filter {
+        case .week:
+            guard let weekStart = cal.date(from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)) else { return logs }
+            return logs.filter { cal.startOfDay(for: $0.date) >= weekStart }
+        case .month:
+            guard let monthStart = cal.date(from: cal.dateComponents([.year, .month], from: now)) else { return logs }
+            return logs.filter { cal.startOfDay(for: $0.date) >= monthStart }
+        case .all:
+            return logs
+        }
+    }
+
+    private var filteredVolume: Double {
+        filteredLogs.reduce(0) { $0 + $1.totalVolume }
     }
 
     var body: some View {
@@ -882,60 +1496,27 @@ struct HistoryView: View {
             AppColors.background.ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.lg) {
-                    SectionHeader(title: String(localized: "section_history"), actionTitle: nil, action: nil)
+                    filterPicker
                     if logs.isEmpty {
-                        GlassCard {
-                            VStack(spacing: AppSpacing.sm) {
-                                Image(systemName: "clock.arrow.circlepath")
-                                    .font(.system(size: 36))
-                                    .foregroundColor(AppColors.textMuted)
-                                Text("no_workouts_logged")
-                                    .font(AppTypography.headline)
-                                Text("no_workouts_logged_desc")
-                                    .font(AppTypography.footnote)
-                                    .foregroundColor(AppColors.textSecondary)
-                                    .multilineTextAlignment(.center)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, AppSpacing.xl)
-                        }
-                        .padding(.horizontal, AppSpacing.lg)
+                        historyEmptyState
                     } else {
-                        VStack(spacing: 0) {
-                            ForEach(logs) { log in
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(log.workoutTitle)
-                                            .font(AppTypography.body.weight(.semibold))
-                                        Text(dateString(log.date))
-                                            .font(AppTypography.footnote)
-                                            .foregroundColor(AppColors.textSecondary)
-                                    }
-                                    Spacer()
-                                    VStack(alignment: .trailing, spacing: 4) {
-                                        Text(String(format: String(localized: "duration_min_format"), log.durationMinutes))
-                                            .font(AppTypography.footnote)
-                                            .foregroundColor(AppColors.textSecondary)
-                                        Text(String(repeating: "★", count: log.rating))
-                                            .font(AppTypography.footnote)
-                                    }
+                        if !filteredLogs.isEmpty {
+                            historySummary
+                        }
+                        SectionHeader(title: String(localized: "section_history"), actionTitle: nil, action: nil)
+                        if filteredLogs.isEmpty {
+                            Text("no_workouts_logged_desc")
+                                .font(AppTypography.footnote)
+                                .foregroundColor(AppColors.textSecondary)
+                                .padding(.horizontal, AppSpacing.lg)
+                        } else {
+                            VStack(spacing: AppSpacing.sm) {
+                                ForEach(filteredLogs) { log in
+                                    historyLogCard(log: log)
                                 }
-                                .padding(.vertical, AppSpacing.sm)
-                                Divider()
                             }
+                            .padding(.horizontal, AppSpacing.lg)
                         }
-                        .padding(.horizontal, AppSpacing.lg)
-                    }
-                    
-                    if !logs.isEmpty {
-                        SectionHeader(title: String(localized: "section_this_week"), subtitle: String(localized: "total_volume"), actionTitle: nil, action: nil)
-                        CardView {
-                            VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                                Text(prefs.displayVolume(kg: volumeThisWeek))
-                                    .font(AppTypography.title2)
-                            }
-                        }
-                        .padding(.horizontal, AppSpacing.lg)
                     }
                 }
                 .padding(.vertical, AppSpacing.lg)
@@ -944,7 +1525,105 @@ struct HistoryView: View {
         .navigationTitle("nav_history")
         .navigationBarTitleDisplayMode(.inline)
     }
-    
+
+    private var filterPicker: some View {
+        HStack(spacing: AppSpacing.sm) {
+            ForEach(HistoryFilter.allCases, id: \.self) { f in
+                Button {
+                    HapticManager.selection()
+                    filter = f
+                } label: {
+                    Text(f.title)
+                        .font(AppTypography.footnote)
+                        .fontWeight(filter == f ? .semibold : .regular)
+                        .foregroundColor(filter == f ? .white : AppColors.textSecondary)
+                        .padding(.horizontal, AppSpacing.md)
+                        .padding(.vertical, AppSpacing.sm)
+                        .background(
+                            Capsule()
+                                .fill(filter == f ? AppColors.accent : AppColors.backgroundElevated.opacity(0.6))
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, AppSpacing.lg)
+    }
+
+    private var historySummary: some View {
+        HStack(spacing: AppSpacing.lg) {
+            GlassCard(cornerRadius: AppTheme.Corners.md) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(format: String(localized: "history_summary_workouts"), filteredLogs.count))
+                        .font(AppTypography.title2)
+                    Text(String(localized: "section_history"))
+                        .font(AppTypography.caption)
+                        .foregroundColor(AppColors.textSecondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            GlassCard(cornerRadius: AppTheme.Corners.md) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(format: String(localized: "history_summary_volume"), prefs.displayVolume(kg: filteredVolume)))
+                        .font(AppTypography.title2)
+                    Text(String(localized: "total_volume"))
+                        .font(AppTypography.caption)
+                        .foregroundColor(AppColors.textSecondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.horizontal, AppSpacing.lg)
+    }
+
+    private func historyLogCard(log: WorkoutLog) -> some View {
+        GlassCard(cornerRadius: AppTheme.Corners.md) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(dateString(log.date))
+                        .font(AppTypography.caption)
+                        .foregroundColor(AppColors.textSecondary)
+                    Text(log.workoutTitle)
+                        .font(AppTypography.headline)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(prefs.displayVolume(kg: log.totalVolume))
+                        .font(AppTypography.body.weight(.semibold))
+                        .foregroundColor(AppColors.accent)
+                    HStack(spacing: 2) {
+                        Text(String(format: String(localized: "duration_min_format"), log.durationMinutes))
+                            .font(AppTypography.caption)
+                            .foregroundColor(AppColors.textSecondary)
+                        Text("•")
+                            .foregroundColor(AppColors.textMuted)
+                        Text(String(repeating: "★", count: log.rating))
+                            .font(AppTypography.caption)
+                    }
+                }
+            }
+        }
+    }
+
+    private var historyEmptyState: some View {
+        GlassCard(cornerRadius: AppTheme.Corners.lg) {
+            VStack(spacing: AppSpacing.lg) {
+                Image(systemName: "figure.run")
+                    .font(.system(size: 44))
+                    .foregroundColor(AppColors.textMuted)
+                Text("no_workouts_logged")
+                    .font(AppTypography.title2)
+                Text("no_workouts_logged_desc")
+                    .font(AppTypography.body)
+                    .foregroundColor(AppColors.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, AppSpacing.xxl)
+        }
+        .padding(.horizontal, AppSpacing.lg)
+    }
+
     private func dateString(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium

@@ -44,7 +44,9 @@ struct WatchWorkoutLiveView: View {
             Text(String(format: String(localized: "watch_set_format"), currentSet, exercise.sets))
                 .font(.caption2)
             
-            Text(String(format: String(localized: "watch_reps_kg"), exercise.reps, Int(exercise.weight)))
+            Text(exercise.requiresWeight
+                 ? String(format: String(localized: "watch_reps_kg"), exercise.reps, Int(exercise.weight))
+                 : String(format: String(localized: "watch_reps_only"), exercise.reps))
                 .font(.caption2)
                 .foregroundColor(.secondary)
             

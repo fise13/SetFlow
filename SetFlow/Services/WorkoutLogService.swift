@@ -12,6 +12,14 @@ final class WorkoutLogService {
     private let db = Firestore.firestore()
 
     func saveLog(_ log: WorkoutLog) async throws {
+        let feedbackArray = log.exerciseFeedbacks.map { feedback in
+            [
+                "id": feedback.id,
+                "exerciseName": feedback.exerciseName,
+                "difficulty": feedback.difficulty,
+                "note": feedback.note as Any
+            ]
+        }
         let data: [String: Any] = [
             "athleteId": log.athleteId,
             "workoutTitle": log.workoutTitle,
@@ -19,7 +27,8 @@ final class WorkoutLogService {
             "durationMinutes": log.durationMinutes,
             "totalSets": log.totalSets,
             "totalVolume": log.totalVolume,
-            "rating": log.rating
+            "rating": log.rating,
+            "exerciseFeedbacks": feedbackArray
         ]
         if log.id.isEmpty || log.id.hasPrefix("temp-") {
             let ref = db.collection(logsCollection).document()
@@ -58,6 +67,18 @@ final class WorkoutLogService {
               let totalSets = data?["totalSets"] as? Int,
               let totalVolume = data?["totalVolume"] as? Double,
               let rating = data?["rating"] as? Int else { return nil }
+        let feedbacksData = data?["exerciseFeedbacks"] as? [[String: Any]] ?? []
+        let feedbacks: [ExerciseFeedback] = feedbacksData.compactMap { item in
+            guard let id = item["id"] as? String,
+                  let exerciseName = item["exerciseName"] as? String,
+                  let difficulty = item["difficulty"] as? Int else { return nil }
+            return ExerciseFeedback(
+                id: id,
+                exerciseName: exerciseName,
+                difficulty: min(5, max(1, difficulty)),
+                note: item["note"] as? String
+            )
+        }
         return WorkoutLog(
             id: doc.documentID,
             athleteId: athleteId,
@@ -66,7 +87,8 @@ final class WorkoutLogService {
             durationMinutes: durationMinutes,
             totalSets: totalSets,
             totalVolume: totalVolume,
-            rating: rating
+            rating: rating,
+            exerciseFeedbacks: feedbacks
         )
     }
 }

@@ -101,12 +101,15 @@
 "today_focus_format" = "Today • %@";
 "no_workout_today" = "No workout scheduled";
 "no_workout_today_desc" = "Your coach hasn't planned anything for today.";
+"no_workout_selected_day" = "No workout planned for this day.";
+"workout_focus_not_set" = "Focus not specified";
 "section_this_week" = "This week";
 "stat_streak" = "Streak";
 "stat_volume" = "Volume";
 "stat_volume_week" = "this week";
 "stat_next" = "Next";
 "stat_planned" = "planned";
+"planned" = "planned";
 "this_week" = "this week";
 "days_in_a_row" = "days in a row";
 "streak_days_format" = "%d days in a row";
@@ -117,6 +120,28 @@
 "no_workouts_yet_desc" = "Complete a workout to see it here.";
 "duration_min_format" = "%d min";
 
+/* Write to coach (athlete) */
+"button_write_to_coach" = "Write to coach";
+"coach_request_sent_title" = "Sent";
+"coach_request_sent" = "Your coach will get a notification.";
+"coach_request_no_coach" = "Connect with a coach first using an invite code in Profile.";
+"coach_request_error" = "Could not send. Try again.";
+
+/* Coach: athlete requests (Updates) */
+"section_athlete_requests" = "Requests from athletes";
+"athlete_request_workout_title" = "%@ asked for a workout";
+"athlete_request_workout_subtitle" = "No workout scheduled for today";
+"no_athlete_requests" = "No requests yet.";
+"no_athlete_requests_subtitle" = "Athletes can tap \"Write to coach\" when they have no workout for the day.";
+
+/* First-run onboarding */
+"first_run_athlete_title" = "Welcome to SetFlow";
+"first_run_athlete_message" = "Your coach assigns your training plan. Add Apple Watch to train with timers and stay focused set by set.";
+"first_run_athlete_action" = "Got it";
+"first_run_coach_title" = "Welcome, coach";
+"first_run_coach_message" = "Invite athletes with your code, then create the first plan in Programs so they can start training today.";
+"first_run_coach_action" = "Open app";
+
 /* Workout Tab Empty */
 "no_workout_today_title" = "No workout today";
 "no_workout_today_message" = "Your coach hasn't scheduled a session for today. Check back tomorrow or look at your week on Home.";
@@ -126,16 +151,28 @@
 "exercises_count_format" = "%d exercises";
 "section_exercises" = "Exercises";
 "button_start_workout" = "Start workout";
+"preflight_sets_format" = "%d sets";
+"preflight_est_duration" = "~%d min";
+"button_view_all_exercises" = "View all exercises";
+"no_exercises_cant_start" = "No exercises yet";
+"no_exercises_cant_start_desc" = "Ask your coach to add exercises to today's plan.";
 
 /* Live Workout */
 "exercise_progress_format" = "Exercise %d of %d";
 "set_progress_format" = "Set %d / %d";
 "rest_label" = "Rest";
+"rest_between_sets" = "Between sets";
+"rest_between_exercises" = "Next exercise";
 "rest_seconds_format" = "%ds";
+"live_stat_sets" = "Sets";
+"live_stat_remaining" = "Left";
 "button_skip_rest" = "Skip rest";
+"button_add_10_sec" = "+10 sec";
 "button_done_set" = "Done set";
 "no_exercises" = "No exercises";
 "button_end_workout_early" = "End workout early";
+"end_workout_confirm_title" = "End workout early?";
+"end_workout_confirm_message" = "You've completed %d sets. Your progress will be saved.";
 "nav_live" = "Live";
 "all_sets_complete" = "All sets complete!";
 "sets_volume_format" = "%d sets • %@ volume";
@@ -149,13 +186,25 @@
 "summary_total_sets" = "Total sets";
 "summary_volume" = "Volume";
 "summary_rating" = "Rating";
+"summary_exercise_feedback" = "Exercise feedback for coach";
+"summary_difficulty" = "Difficulty";
+"difficulty_value_format" = "%d/5";
+"summary_exercise_note_placeholder" = "Optional note (e.g. next time 50 kg)";
 "button_save_go_home" = "Save and go home";
 "saving" = "Saving…";
+"save_success" = "Saved!";
+"save_error_title" = "Could not save";
+"save_error_retry" = "Try again";
 
 /* History */
 "section_history" = "History";
 "no_workouts_logged" = "No workouts logged yet";
-"no_workouts_logged_desc" = "Complete a workout from the Workout tab to see it here.";
+"no_workouts_logged_desc" = "Complete your first workout from the Workout tab — it will appear here and count toward your progress.";
+"history_filter_week" = "Week";
+"history_filter_month" = "Month";
+"history_filter_all" = "All";
+"history_summary_workouts" = "%d workouts";
+"history_summary_volume" = "%@ volume";
 "section_this_week_volume" = "This week";
 "total_volume" = "Total volume";
 "nav_history" = "History";
@@ -204,11 +253,16 @@
 /* Coach Dashboard */
 "section_athletes" = "Athletes";
 "athletes_subtitle" = "Manage everyone in one place";
+"search_athletes_placeholder" = "Search athletes";
 "filter_active" = "Active";
 "last_workout_volume_format" = "Last workout: 2d ago • Volume: 14,200 kg";
 "nav_dashboard" = "Dashboard";
 "active_badge" = "ACTIVE";
 "section_progress_coach" = "Progress";
+"coach_athlete_summary_empty" = "No workout logs yet for this athlete.";
+"coach_summary_workouts" = "Workouts";
+"coach_summary_avg_rating" = "Avg rating";
+"coach_summary_last" = "Last";
 "summary_label" = "Summary";
 "placeholder_charts" = "Placeholder charts and stats. Replace with real data later.";
 "section_plan" = "Plan";
@@ -222,15 +276,44 @@
 /* Coach Programs */
 "nav_programs" = "Programs";
 "section_weekly_schedule" = "Weekly schedule";
+"weekly_schedule_subtitle" = "Choose a week and plan workout days";
 "no_plan_yet" = "No plan yet";
 "button_create_plan" = "Create plan";
+"button_add_workout_day" = "Add workout day";
+"button_add_week" = "Add week";
+"week_number_format" = "Week %d";
+"no_days_in_selected_week" = "No workout days in this week yet.";
 
 /* Plan Builder */
 "workout_day_title" = "Workout day";
 "workout_day_subtitle" = "Tap an exercise to edit • Date sets when this workout is scheduled";
+"workout_name_label" = "Workout name";
+"workout_name_placeholder" = "Select or type workout name";
+"workout_focus_label" = "Workout focus";
+"workout_focus_placeholder" = "Select body part focus";
+"workout_title_upper_body" = "Upper Body";
+"workout_title_lower_body" = "Lower Body";
+"workout_title_full_body" = "Full Body";
+"workout_title_push" = "Push Day";
+"workout_title_pull" = "Pull Day";
+"workout_title_legs" = "Leg Day";
+"workout_title_cardio" = "Cardio";
+"workout_title_recovery" = "Recovery";
+"workout_focus_upper_body" = "Upper body";
+"workout_focus_lower_body" = "Lower body";
+"workout_focus_full_body" = "Full body";
+"workout_focus_chest_triceps" = "Chest + Triceps";
+"workout_focus_back_biceps" = "Back + Biceps";
+"workout_focus_shoulders" = "Shoulders";
+"workout_focus_legs_glutes" = "Legs + Glutes";
+"workout_focus_core" = "Core";
+"workout_focus_cardio" = "Cardio";
+"workout_focus_mobility" = "Mobility";
 "workout_number_format" = "Workout %d";
 "date_label" = "Date";
 "button_add" = "Add";
+"button_delete_day" = "Delete day";
+"button_delete_exercise" = "Delete exercise";
 "button_send_update" = "Send update to athlete";
 "button_send_update_short" = "Send update";
 "update_sent" = "Update sent";
@@ -247,8 +330,19 @@
 "stepper_reps" = "Reps";
 "stepper_weight_kg" = "Weight (kg)";
 "stepper_rest_s" = "Rest (s)";
+"exercise_name_not_exact_hint" = "Type and pick the exact exercise from suggestions for correct icon and fields.";
+"exercise_weight_not_required" = "Weight is not required for this exercise type.";
+"exercise_video_link_label" = "Video technique link";
+"exercise_video_link_placeholder" = "https://youtube.com/...";
+"exercise_video_link_optional_hint" = "Optional. You can leave this empty.";
+"exercise_video_pill" = "video";
+"exercise_watch_technique" = "Watch technique video";
+"exercise_open_video" = "Open exercise video";
 "section_recent_updates" = "Recent updates";
 "recent_updates_subtitle" = "What your athletes will see next";
+"coach_no_workout_summaries" = "No workout summaries from athletes yet.";
+"coach_summary_overview_format" = "%d sets • %d kg • athlete rating %d/5";
+"coach_summary_note_format" = "Athlete note: %@";
 "change_log" = "Change log";
 "updates_preview_placeholder" = "Preview of sent updates will appear here. For now this is a static mock.";
 "nav_updates" = "Updates";
@@ -267,6 +361,8 @@
 "expires_format" = "Expires %@";
 "button_generate_code" = "Generate code";
 "button_generate_new_code" = "Generate new code";
+"button_copy_code" = "Copy code";
+"button_copied" = "Copied";
 "nav_invite_code_coach" = "Invite code";
 
 /* Notifications */
@@ -282,10 +378,17 @@
 "watch_nav_live" = "Live";
 "watch_set_format" = "Set %d / %d";
 "watch_reps_kg" = "%d reps • %d kg";
+"watch_reps_only" = "%d reps";
 "watch_done" = "Done";
 "watch_nav_rest" = "Rest";
 "watch_skip" = "Skip";
 "watch_nav_finish" = "Finish";
+
+/* Live Activity / Dynamic Island */
+"live_activity_rest" = "Rest";
+"live_activity_active" = "Active";
+"live_activity_completed" = "Complete";
+"live_activity_next_exercise" = "Next exercise";
 
 /* Common */
 "days" = "days";

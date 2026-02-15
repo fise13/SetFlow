@@ -29,6 +29,9 @@ final class WorkoutPlanService {
             let exercises = exercisesData.compactMap { exDict -> Exercise? in
                 guard let exId = exDict["id"] as? String,
                       let exName = exDict["name"] as? String else { return nil }
+                let matchedCatalogItem = ExerciseCatalog.exactMatch(for: exName)
+                let storedCategory = ExerciseCategory(rawValue: exDict["category"] as? String ?? "")
+                let resolvedCategory = storedCategory ?? matchedCatalogItem?.category ?? .freeWeights
                 return Exercise(
                     id: exId,
                     name: exName,
@@ -37,6 +40,9 @@ final class WorkoutPlanService {
                     weight: exDict["weight"] as? Double ?? 0,
                     restSeconds: exDict["restSeconds"] as? Int ?? 90,
                     notes: exDict["notes"] as? String,
+                    tutorialURL: exDict["tutorialURL"] as? String,
+                    category: resolvedCategory,
+                    catalogId: exDict["catalogId"] as? String ?? matchedCatalogItem?.id,
                     isCompleted: exDict["isCompleted"] as? Bool ?? false
                 )
             }
@@ -114,6 +120,9 @@ final class WorkoutPlanService {
                     "weight": ex.weight,
                     "restSeconds": ex.restSeconds,
                     "notes": ex.notes as Any,
+                    "tutorialURL": ex.tutorialURL as Any,
+                    "category": ex.category.rawValue,
+                    "catalogId": ex.catalogId as Any,
                     "isCompleted": ex.isCompleted
                 ]
             }
