@@ -46,7 +46,14 @@ final class AppState: ObservableObject {
         defer { isLoadingProfile = false }
         do {
             let user = try await userService.getUser(id: uid)
-            currentUser = user
+            if let user {
+                try? await userService.updateLastSeen(userId: uid)
+                var updated = user
+                updated.lastSeenAt = Date()
+                currentUser = updated
+            } else {
+                currentUser = nil
+            }
             // Show role selection only when there's no profile (first-time registration).
             needsProfileSetup = (user == nil)
         } catch {
@@ -59,7 +66,11 @@ final class AppState: ObservableObject {
     func refetchCurrentUser() async {
         guard let uid = authService.uid else { return }
         do {
-            currentUser = try await userService.getUser(id: uid)
+            let fetched = try await userService.getUser(id: uid)
+            if fetched != nil {
+                try? await userService.updateLastSeen(userId: uid)
+            }
+            currentUser = fetched
             needsProfileSetup = (currentUser == nil)
         } catch {
             currentUser = nil

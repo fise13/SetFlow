@@ -9,14 +9,14 @@ import UIKit
 enum CoachTab: String, CaseIterable {
     case athletes
     case programs
-    case updates
+    case signals
     case profile
     
     var title: String {
         switch self {
         case .athletes: return String(localized: "tab_athletes")
         case .programs: return String(localized: "tab_programs")
-        case .updates: return String(localized: "tab_updates")
+        case .signals: return String(localized: "tab_signals")
         case .profile: return String(localized: "tab_profile")
         }
     }
@@ -25,7 +25,7 @@ enum CoachTab: String, CaseIterable {
         switch self {
         case .athletes: return "person.3.fill"
         case .programs: return "list.bullet.rectangle"
-        case .updates: return "paperplane.fill"
+        case .signals: return "waveform.path.ecg"
         case .profile: return "person.crop.circle"
         }
     }
@@ -44,7 +44,12 @@ struct CoachTabRootView: View {
     init(coach: User, appState: AppState) {
         self.coach = coach
         self.appState = appState
-        _dashboardVM = StateObject(wrappedValue: CoachDashboardViewModel(coach: coach, userService: appState.userService))
+        _dashboardVM = StateObject(wrappedValue: CoachDashboardViewModel(
+            coach: coach,
+            userService: appState.userService,
+            planService: appState.planService,
+            logService: appState.logService
+        ))
     }
 
     var body: some View {
@@ -90,8 +95,8 @@ struct CoachTabRootView: View {
             NavigationStack { CoachDashboardView(viewModel: dashboardVM) }
         case .programs:
             NavigationStack { PlanProgramsEntryView(appState: appState) }
-        case .updates:
-            NavigationStack { CoachUpdatesView() }
+        case .signals:
+            NavigationStack { CoachSignalsView(appState: appState) }
         case .profile:
             NavigationStack { CoachProfileView(coach: coach) }
         }
@@ -152,13 +157,21 @@ struct CoachTabBar: View {
 final class CoachDashboardViewModel: ObservableObject {
     let coach: User
     private let userService: UserService
+    private let planService: WorkoutPlanService
+    private let logService: WorkoutLogService
 
     @Published var athletes: [User] = []
     @Published var isLoading: Bool = true
+    @Published var trainedToday: [User] = []
+    @Published var missedToday: [User] = []
+    @Published var inactiveAthletes: [User] = []
+    @Published var sentFeedback: [User] = []
 
-    init(coach: User, userService: UserService) {
+    init(coach: User, userService: UserService, planService: WorkoutPlanService, logService: WorkoutLogService) {
         self.coach = coach
         self.userService = userService
+        self.planService = planService
+        self.logService = logService
     }
 
     @MainActor
@@ -167,8 +180,48 @@ final class CoachDashboardViewModel: ObservableObject {
         Task {
             do {
                 athletes = try await userService.athletesForCoach(coachId: coach.id)
+                let plans = try await planService.plansForCoach(coachId: coach.id)
+                let today = Calendar.current.startOfDay(for: Date())
+                var trained: [User] = []
+                var missed: [User] = []
+                var inactive: [User] = []
+                var feedback: [User] = []
+
+                for athlete in athletes {
+                    let athletePlanDays = plans
+                        .first(where: { $0.athleteId == athlete.id })?
+                        .days ?? []
+                    let hasWorkoutToday = athletePlanDays.contains { Calendar.current.isDate($0.date, inSameDayAs: today) }
+                    let logs = (try? await logService.logsForAthlete(athleteId: athlete.id, limit: 20)) ?? []
+                    let trainedTodayFlag = logs.contains { Calendar.current.isDate($0.date, inSameDayAs: today) }
+                    if trainedTodayFlag { trained.append(athlete) }
+                    if hasWorkoutToday && !trainedTodayFlag { missed.append(athlete) }
+
+                    if let lastSeen = athlete.lastSeenAt {
+                        let days = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: lastSeen), to: today).day ?? 0
+                        if days >= 3 { inactive.append(athlete) }
+                    } else {
+                        inactive.append(athlete)
+                    }
+
+                    let sentFeedbackFlag = logs.contains { log in
+                        log.exerciseFeedbacks.contains {
+                            ($0.note?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) || $0.difficulty != 3
+                        }
+                    }
+                    if sentFeedbackFlag { feedback.append(athlete) }
+                }
+
+                trainedToday = trained
+                missedToday = missed
+                inactiveAthletes = inactive
+                sentFeedback = feedback
             } catch {
                 athletes = []
+                trainedToday = []
+                missedToday = []
+                inactiveAthletes = []
+                sentFeedback = []
             }
             isLoading = false
         }
@@ -286,6 +339,194 @@ struct CoachDashboardView: View {
                         endPoint: .trailing
                     ))
             )
+    }
+}
+
+// MARK: - Coach Signals
+
+struct CoachSignalsView: View {
+    @ObservedObject var appState: AppState
+    @State private var athletes: [User] = []
+    @State private var trainedToday: [User] = []
+    @State private var missedToday: [User] = []
+    @State private var inactiveAthletes: [User] = []
+    @State private var sentFeedback: [User] = []
+    @State private var isLoading = false
+    @State private var searchText = ""
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                SectionHeader(
+                    title: String(localized: "coach_dashboard_signals_title"),
+                    subtitle: String(localized: "coach_signals_subtitle")
+                )
+                signalSection(title: String(localized: "coach_dashboard_trained_today"), athletes: trainedToday)
+                signalSection(title: String(localized: "coach_dashboard_missed_today"), athletes: missedToday)
+                signalSection(title: String(localized: "coach_dashboard_inactive"), athletes: inactiveAthletes)
+                signalSection(title: String(localized: "coach_dashboard_sent_feedback"), athletes: sentFeedback)
+
+                SectionHeader(
+                    title: String(localized: "coach_full_athlete_list_title"),
+                    subtitle: String(format: String(localized: "coach_full_athlete_list_count"), athletes.count)
+                )
+
+                HStack(spacing: AppSpacing.sm) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(AppColors.textSecondary)
+                    TextField(String(localized: "search_athletes_placeholder"), text: $searchText)
+                        .textInputAutocapitalization(.never)
+                        .disableAutocorrection(true)
+                }
+                .padding(.horizontal, AppSpacing.md)
+                .frame(height: 44)
+                .background(
+                    RoundedRectangle(cornerRadius: AppTheme.Corners.md, style: .continuous)
+                        .fill(AppColors.backgroundElevated.opacity(0.75))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: AppTheme.Corners.md, style: .continuous)
+                                .strokeBorder(AppColors.border.opacity(0.5), lineWidth: 1)
+                        )
+                )
+
+                if isLoading {
+                    ForEach(0..<4, id: \.self) { _ in
+                        SkeletonCard()
+                    }
+                } else if filteredAthletes.isEmpty {
+                    GlassCard(cornerRadius: AppTheme.Corners.md) {
+                        Text("coach_dashboard_none")
+                            .font(AppTypography.footnote)
+                            .foregroundColor(AppColors.textSecondary)
+                    }
+                } else {
+                    ForEach(filteredAthletes) { athlete in
+                        NavigationLink {
+                            AthleteProfileView(athlete: athlete)
+                        } label: {
+                            GlassCard(cornerRadius: AppTheme.Corners.md) {
+                                HStack {
+                                    Text(athlete.name)
+                                        .font(AppTypography.headline)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .foregroundColor(AppColors.textSecondary)
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(.horizontal, AppSpacing.lg)
+            .padding(.vertical, AppSpacing.lg)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AppColors.background)
+        .navigationTitle("tab_signals")
+        .navigationBarTitleDisplayMode(.inline)
+        .refreshable { await load() }
+        .task { await load() }
+    }
+
+    private var filteredAthletes: [User] {
+        athletes.filter { athlete in
+            searchText.isEmpty || athlete.name.lowercased().contains(searchText.lowercased())
+        }
+    }
+
+    private func signalSection(title: String, athletes: [User]) -> some View {
+        GlassCard(cornerRadius: AppTheme.Corners.md) {
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                Text(title)
+                    .font(AppTypography.callout.weight(.semibold))
+                if athletes.isEmpty {
+                    Text("coach_dashboard_none")
+                        .font(AppTypography.caption)
+                        .foregroundColor(AppColors.textSecondary)
+                } else {
+                    ForEach(athletes) { athlete in
+                        NavigationLink {
+                            AthleteProfileView(athlete: athlete)
+                        } label: {
+                            HStack {
+                                Text(athlete.name)
+                                    .font(AppTypography.footnote)
+                                    .foregroundColor(AppColors.textPrimary)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundColor(AppColors.textSecondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func load() async {
+        guard let coach = appState.currentUser, coach.role == .coach else { return }
+        await MainActor.run { isLoading = true }
+        do {
+            let loadedAthletes = try await appState.userService.athletesForCoach(coachId: coach.id)
+            let plans = try await appState.planService.plansForCoach(coachId: coach.id)
+            let today = Calendar.current.startOfDay(for: Date())
+
+            var trained: [User] = []
+            var missed: [User] = []
+            var inactive: [User] = []
+            var feedback: [User] = []
+
+            for athlete in loadedAthletes {
+                let logs = (try? await appState.logService.logsForAthlete(athleteId: athlete.id, limit: 20)) ?? []
+                let hasWorkoutToday = plans
+                    .first(where: { $0.athleteId == athlete.id })?
+                    .days.contains(where: { Calendar.current.isDate($0.date, inSameDayAs: today) }) ?? false
+                let trainedTodayFlag = logs.contains { Calendar.current.isDate($0.date, inSameDayAs: today) }
+
+                if trainedTodayFlag { trained.append(athlete) }
+                if hasWorkoutToday && !trainedTodayFlag { missed.append(athlete) }
+
+                if let lastSeen = athlete.lastSeenAt {
+                    let daysSinceOpen = Calendar.current.dateComponents(
+                        [.day],
+                        from: Calendar.current.startOfDay(for: lastSeen),
+                        to: today
+                    ).day ?? 0
+                    if daysSinceOpen >= 3 { inactive.append(athlete) }
+                } else {
+                    inactive.append(athlete)
+                }
+
+                let sentFeedbackFlag = logs.contains { log in
+                    log.exerciseFeedbacks.contains {
+                        ($0.note?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) || $0.difficulty != 3
+                    }
+                }
+                if sentFeedbackFlag { feedback.append(athlete) }
+            }
+
+            await MainActor.run {
+                athletes = loadedAthletes
+                trainedToday = trained
+                missedToday = missed
+                inactiveAthletes = inactive
+                sentFeedback = feedback
+                isLoading = false
+            }
+        } catch {
+            await MainActor.run {
+                athletes = []
+                trainedToday = []
+                missedToday = []
+                inactiveAthletes = []
+                sentFeedback = []
+                isLoading = false
+            }
+        }
     }
 }
 
@@ -2013,7 +2254,9 @@ struct CoachViews_Previews: PreviewProvider {
                 CoachDashboardView(
                     viewModel: CoachDashboardViewModel(
                         coach: MockData.sampleCoach,
-                        userService: UserService()
+                        userService: UserService(),
+                        planService: WorkoutPlanService(),
+                        logService: WorkoutLogService()
                     )
                 )
             }

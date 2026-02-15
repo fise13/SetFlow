@@ -14,7 +14,8 @@ final class UserService {
     func createUser(id: String, name: String, role: UserRole, coachId: String? = nil) async throws {
         var data: [String: Any] = [
             "name": name,
-            "role": role.rawValue
+            "role": role.rawValue,
+            "lastSeenAt": Timestamp(date: Date())
         ]
         if let coachId = coachId {
             data["coachId"] = coachId
@@ -29,7 +30,8 @@ final class UserService {
         let roleRaw = data["role"] as? String ?? UserRole.athlete.rawValue
         let role = UserRole(rawValue: roleRaw) ?? .athlete
         let coachId = data["coachId"] as? String
-        return User(id: id, name: name, role: role, coachId: coachId)
+        let lastSeenAt = (data["lastSeenAt"] as? Timestamp)?.dateValue()
+        return User(id: id, name: name, role: role, coachId: coachId, lastSeenAt: lastSeenAt)
     }
 
     func updateUser(id: String, name: String? = nil, role: UserRole? = nil, coachId: String?? = nil) async throws {
@@ -48,6 +50,12 @@ final class UserService {
         try await db.collection(usersCollection).document(athleteId).updateData(["coachId": coachId])
     }
 
+    func updateLastSeen(userId: String) async throws {
+        try await db.collection(usersCollection).document(userId).updateData([
+            "lastSeenAt": Timestamp(date: Date())
+        ])
+    }
+
     func athletesForCoach(coachId: String) async throws -> [User] {
         let snapshot = try await db.collection(usersCollection)
             .whereField("coachId", isEqualTo: coachId)
@@ -57,7 +65,8 @@ final class UserService {
             let data = doc.data()
             let name = data["name"] as? String ?? ""
             let coachIdVal = data["coachId"] as? String
-            return User(id: doc.documentID, name: name, role: .athlete, coachId: coachIdVal)
+            let lastSeenAt = (data["lastSeenAt"] as? Timestamp)?.dateValue()
+            return User(id: doc.documentID, name: name, role: .athlete, coachId: coachIdVal, lastSeenAt: lastSeenAt)
         }
     }
 }

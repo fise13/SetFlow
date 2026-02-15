@@ -10,6 +10,7 @@ struct User: Identifiable, Hashable, Codable {
     var name: String
     var role: UserRole
     var coachId: String?
+    var lastSeenAt: Date? = nil
 }
 
 struct Exercise: Identifiable, Hashable, Codable {
@@ -256,6 +257,7 @@ struct WorkoutLog: Identifiable, Hashable, Codable {
     var totalVolume: Double
     var rating: Int // 1-5
     var exerciseFeedbacks: [ExerciseFeedback] = []
+    var status: WorkoutSessionStatus = .completed
 }
 
 struct ExerciseFeedback: Identifiable, Hashable, Codable {
@@ -265,5 +267,11 @@ struct ExerciseFeedback: Identifiable, Hashable, Codable {
     var difficulty: Int
     /// Optional athlete note for coach ("next time 50kg", etc.)
     var note: String?
+}
+
+enum WorkoutSessionStatus: String, Codable {
+    case completed
+    case missed
+    case makeup
 }
 

@@ -94,6 +94,7 @@
 "tab_athletes" = "Athletes";
 "tab_programs" = "Programs";
 "tab_updates" = "Updates";
+"tab_signals" = "Signals";
 
 /* Athlete Home */
 "today" = "Today";
@@ -158,6 +159,8 @@
 /* Workout Tab Empty */
 "no_workout_today_title" = "No workout today";
 "no_workout_today_message" = "Your coach hasn't scheduled a session for today. Check back tomorrow or look at your week on Home.";
+"no_workout_left_today_title" = "No workouts left";
+"no_workout_left_today_message" = "You finished all workouts for today. Great job.";
 "nav_workout" = "Workout";
 
 /* Workout Detail */
@@ -169,6 +172,17 @@
 "button_view_all_exercises" = "View all exercises";
 "no_exercises_cant_start" = "No exercises yet";
 "no_exercises_cant_start_desc" = "Ask your coach to add exercises to today's plan.";
+"schedule_section_title" = "Scheduling";
+"schedule_section_subtitle" = "Need to move this workout? You can reschedule, mark missed, or create make-up.";
+"schedule_reschedule_cta" = "Reschedule";
+"schedule_makeup_cta" = "Make-up session";
+"schedule_mark_missed" = "Mark as missed workout";
+"schedule_reschedule_title" = "Reschedule workout";
+"schedule_reschedule_confirm" = "Move workout";
+"schedule_makeup_title" = "Create make-up session";
+"schedule_makeup_confirm" = "Create make-up";
+"schedule_makeup_suffix" = "Make-up";
+"workout_status_missed" = "Missed";
 
 /* Live Workout */
 "exercise_progress_format" = "Exercise %d of %d";
@@ -203,6 +217,7 @@
 "summary_difficulty" = "Difficulty";
 "difficulty_value_format" = "%d/5";
 "summary_exercise_note_placeholder" = "Optional note (e.g. next time 50 kg)";
+"workout_all_done_message" = "You completed all exercises. Great job.";
 "button_save_go_home" = "Save and go home";
 "saving" = "Saving…";
 "save_success" = "Saved!";
@@ -267,6 +282,15 @@
 "section_athletes" = "Athletes";
 "athletes_subtitle" = "Manage everyone in one place";
 "search_athletes_placeholder" = "Search athletes";
+"coach_dashboard_signals_title" = "Coach signals";
+"coach_dashboard_trained_today" = "Trained today";
+"coach_dashboard_missed_today" = "Missed today";
+"coach_dashboard_inactive" = "Inactive 3+ days";
+"coach_dashboard_sent_feedback" = "Sent feedback";
+"coach_dashboard_none" = "No athletes in this group.";
+"coach_signals_subtitle" = "Daily coaching signals across all athletes";
+"coach_full_athlete_list_title" = "All athletes";
+"coach_full_athlete_list_count" = "%d total";
 "filter_active" = "Active";
 "last_workout_volume_format" = "Last workout: 2d ago • Volume: 14,200 kg";
 "nav_dashboard" = "Dashboard";

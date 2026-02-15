@@ -28,7 +28,8 @@ final class WorkoutLogService {
             "totalSets": log.totalSets,
             "totalVolume": log.totalVolume,
             "rating": log.rating,
-            "exerciseFeedbacks": feedbackArray
+            "exerciseFeedbacks": feedbackArray,
+            "status": log.status.rawValue
         ]
         if log.id.isEmpty || log.id.hasPrefix("temp-") {
             let ref = db.collection(logsCollection).document()
@@ -88,7 +89,8 @@ final class WorkoutLogService {
             totalSets: totalSets,
             totalVolume: totalVolume,
             rating: rating,
-            exerciseFeedbacks: feedbacks
+            exerciseFeedbacks: feedbacks,
+            status: WorkoutSessionStatus(rawValue: data?["status"] as? String ?? "completed") ?? .completed
         )
     }
 }

@@ -99,7 +99,7 @@ struct AthleteTabRootView: View {
 
     @ViewBuilder
     private var workoutTabContent: some View {
-        if let today = homeViewModel.todayWorkout {
+        if let today = homeViewModel.todayWorkout, !homeViewModel.isWorkoutLoggedToday(today) {
             WorkoutDetailView(workoutDay: today, athleteId: user.id)
         } else {
             workoutTabEmptyView
@@ -116,14 +116,13 @@ struct AthleteTabRootView: View {
                         Image(systemName: "calendar.badge.clock")
                             .font(.system(size: 44))
                             .foregroundColor(AppColors.textMuted)
-                        Text("no_workout_today_title")
+                        Text(homeViewModel.todayWorkout != nil ? "no_workout_left_today_title" : "no_workout_today_title")
                             .font(AppTypography.title2)
-                        Text("no_workout_today_message")
+                        Text(homeViewModel.todayWorkout != nil ? "no_workout_left_today_message" : "no_workout_today_message")
                             .font(AppTypography.body)
                             .foregroundColor(AppColors.textSecondary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
-                        WriteToCoachButton(user: user)
                     }
                     .padding(.vertical, AppSpacing.xxl)
                 }
@@ -222,7 +221,11 @@ final class AthleteHomeViewModel: ObservableObject {
     var streakDays: Int {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
-        let workoutDays = Set(history.map { cal.startOfDay(for: $0.date) })
+        let workoutDays = Set(
+            history
+                .filter { $0.status != .missed }
+                .map { cal.startOfDay(for: $0.date) }
+        )
         var count = 0
         var d = today
         while workoutDays.contains(d) {
@@ -239,6 +242,7 @@ final class AthleteHomeViewModel: ObservableObject {
         let now = Date()
         guard let weekStart = cal.date(from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)) else { return 0 }
         return history
+            .filter { $0.status != .missed }
             .filter { cal.startOfDay(for: $0.date) >= weekStart }
             .reduce(0) { $0 + $1.totalVolume }
     }
@@ -254,7 +258,11 @@ final class AthleteHomeViewModel: ObservableObject {
     var todayProgress: Double {
         guard let today = todayWorkout else { return 0 }
         let cal = Calendar.current
-        let hasLoggedToday = history.contains { cal.isDate($0.date, inSameDayAs: Date()) && $0.workoutTitle == today.title }
+        let hasLoggedToday = history.contains {
+            cal.isDate($0.date, inSameDayAs: Date())
+            && $0.workoutTitle == today.title
+            && $0.status != .missed
+        }
         return hasLoggedToday ? 1 : 0
     }
 
@@ -284,6 +292,13 @@ final class AthleteHomeViewModel: ObservableObject {
         }
         logListener = logService.logsForAthleteListener(athleteId: user.id) { [weak self] logs in
             self?.history = logs
+        }
+    }
+
+    func isWorkoutLoggedToday(_ workout: WorkoutDay) -> Bool {
+        let cal = Calendar.current
+        return history.contains {
+            cal.isDate($0.date, inSameDayAs: Date()) && $0.workoutTitle == workout.title
         }
     }
 }
@@ -407,7 +422,6 @@ struct AthleteHomeView: View {
                         Text("no_workout_today_desc")
                             .font(AppTypography.body)
                             .foregroundColor(AppColors.textSecondary)
-                        WriteToCoachButton(user: viewModel.user)
                     }
                 }
                 .padding(.horizontal, AppSpacing.lg)
@@ -537,11 +551,17 @@ struct AthleteHomeView: View {
                                 }
                                 Spacer()
                                 VStack(alignment: .trailing, spacing: 4) {
-                                    Text(String(format: String(localized: "duration_min_format"), log.durationMinutes))
-                                        .font(AppTypography.footnote)
-                                        .foregroundColor(AppColors.textSecondary)
-                                    Text(String(repeating: "★", count: log.rating))
-                                        .font(AppTypography.footnote)
+                                    if log.status == .missed {
+                                        Text("workout_status_missed")
+                                            .font(AppTypography.footnote)
+                                            .foregroundColor(AppColors.warning)
+                                    } else {
+                                        Text(String(format: String(localized: "duration_min_format"), log.durationMinutes))
+                                            .font(AppTypography.footnote)
+                                            .foregroundColor(AppColors.textSecondary)
+                                        Text(String(repeating: "★", count: log.rating))
+                                            .font(AppTypography.footnote)
+                                    }
                                 }
                             }
                         }
@@ -605,7 +625,13 @@ struct AthleteFirstRunOnboardingView: View {
 struct WorkoutDetailView: View {
     let workoutDay: WorkoutDay
     var athleteId: String
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
     @State private var showAllExercises = false
+    @State private var showRescheduleSheet = false
+    @State private var showMakeupSheet = false
+    @State private var selectedScheduleDate = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+    @State private var isApplyingSchedule = false
 
     private var totalSets: Int {
         workoutDay.exercises.reduce(0) { $0 + $1.sets }
@@ -626,6 +652,7 @@ struct WorkoutDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.lg) {
                     preflightBlock
+                    schedulingBlock
                     if !workoutDay.exercises.isEmpty {
                         SectionHeader(title: String(localized: "section_exercises"), actionTitle: nil, action: nil)
                         exercisesList
@@ -642,6 +669,20 @@ struct WorkoutDetailView: View {
             NavigationStack {
                 allExercisesSheet
             }
+        }
+        .sheet(isPresented: $showRescheduleSheet) {
+            scheduleSheet(
+                title: String(localized: "schedule_reschedule_title"),
+                confirmTitle: String(localized: "schedule_reschedule_confirm"),
+                action: { performReschedule(to: selectedScheduleDate) }
+            )
+        }
+        .sheet(isPresented: $showMakeupSheet) {
+            scheduleSheet(
+                title: String(localized: "schedule_makeup_title"),
+                confirmTitle: String(localized: "schedule_makeup_confirm"),
+                action: { createMakeupSession(on: selectedScheduleDate) }
+            )
         }
     }
 
@@ -712,6 +753,148 @@ struct WorkoutDetailView: View {
             }
         }
         .padding(.horizontal, AppSpacing.lg)
+    }
+
+    private var schedulingBlock: some View {
+        GlassCard(cornerRadius: AppTheme.Corners.md) {
+            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                Text("schedule_section_title")
+                    .font(AppTypography.headline)
+                Text("schedule_section_subtitle")
+                    .font(AppTypography.footnote)
+                    .foregroundColor(AppColors.textSecondary)
+
+                HStack(spacing: AppSpacing.sm) {
+                    SecondaryButton(title: String(localized: "schedule_reschedule_cta"), fullWidth: true) {
+                        selectedScheduleDate = Calendar.current.date(byAdding: .day, value: 1, to: workoutDay.date) ?? Date()
+                        showRescheduleSheet = true
+                    }
+                    SecondaryButton(title: String(localized: "schedule_makeup_cta"), fullWidth: true) {
+                        selectedScheduleDate = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+                        showMakeupSheet = true
+                    }
+                }
+
+                Button {
+                    markWorkoutMissed()
+                } label: {
+                    Text("schedule_mark_missed")
+                        .font(AppTypography.footnote)
+                        .foregroundColor(AppColors.danger)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .disabled(isApplyingSchedule)
+            }
+        }
+        .padding(.horizontal, AppSpacing.lg)
+    }
+
+    private func scheduleSheet(title: String, confirmTitle: String, action: @escaping () -> Void) -> some View {
+        NavigationStack {
+            ZStack {
+                AppColors.background.ignoresSafeArea()
+                VStack(spacing: AppSpacing.lg) {
+                    DatePicker(
+                        "",
+                        selection: $selectedScheduleDate,
+                        in: Date()...,
+                        displayedComponents: .date
+                    )
+                    .datePickerStyle(.graphical)
+                    .labelsHidden()
+
+                    PrimaryButton(title: confirmTitle) {
+                        action()
+                    }
+                    .disabled(isApplyingSchedule)
+                    Spacer()
+                }
+                .padding(.horizontal, AppSpacing.lg)
+                .padding(.top, AppSpacing.lg)
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(String(localized: "button_cancel")) {
+                        showRescheduleSheet = false
+                        showMakeupSheet = false
+                    }
+                }
+            }
+        }
+    }
+
+    private func performReschedule(to date: Date) {
+        isApplyingSchedule = true
+        Task {
+            await updatePlanDayDate(date)
+            await MainActor.run {
+                isApplyingSchedule = false
+                showRescheduleSheet = false
+                dismiss()
+            }
+        }
+    }
+
+    private func createMakeupSession(on date: Date) {
+        isApplyingSchedule = true
+        Task {
+            do {
+                let plans = try await appState.planService.plansForAthlete(athleteId: athleteId)
+                guard var plan = plans.first else { return }
+                let newDay = WorkoutDay(
+                    id: UUID().uuidString,
+                    title: "\(workoutDay.title) • \(String(localized: "schedule_makeup_suffix"))",
+                    focus: workoutDay.focus,
+                    date: Calendar.current.startOfDay(for: date),
+                    exercises: workoutDay.exercises
+                )
+                plan.days.append(newDay)
+                plan.days.sort { $0.date < $1.date }
+                try await appState.planService.updatePlan(plan)
+            } catch { }
+            await MainActor.run {
+                isApplyingSchedule = false
+                showMakeupSheet = false
+                dismiss()
+            }
+        }
+    }
+
+    private func markWorkoutMissed() {
+        isApplyingSchedule = true
+        Task {
+            let missedLog = WorkoutLog(
+                id: "temp-\(UUID().uuidString)",
+                athleteId: athleteId,
+                workoutTitle: workoutDay.title,
+                date: Date(),
+                durationMinutes: 0,
+                totalSets: 0,
+                totalVolume: 0,
+                rating: 0,
+                exerciseFeedbacks: [],
+                status: .missed
+            )
+            try? await appState.logService.saveLog(missedLog)
+            await MainActor.run {
+                isApplyingSchedule = false
+                dismiss()
+            }
+        }
+    }
+
+    private func updatePlanDayDate(_ date: Date) async {
+        do {
+            let plans = try await appState.planService.plansForAthlete(athleteId: athleteId)
+            guard var plan = plans.first,
+                  let index = plan.days.firstIndex(where: { $0.id == workoutDay.id }) else { return }
+            plan.days[index].date = Calendar.current.startOfDay(for: date)
+            plan.days.sort { $0.date < $1.date }
+            try await appState.planService.updatePlan(plan)
+        } catch { }
     }
 
     private var allExercisesSheet: some View {
@@ -1306,6 +1489,12 @@ struct WorkoutSummaryView: View {
                     }
                     .padding(.horizontal, AppSpacing.lg)
 
+                    Text("workout_all_done_message")
+                        .font(AppTypography.body)
+                        .foregroundColor(AppColors.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, AppSpacing.lg)
+
                     if !exerciseFeedbacks.isEmpty {
                         GlassCard(cornerRadius: AppTheme.Corners.lg) {
                             VStack(alignment: .leading, spacing: AppSpacing.md) {
@@ -1380,18 +1569,16 @@ struct WorkoutSummaryView: View {
                 }
                 .padding(.vertical, AppSpacing.xl)
             }
-
-            VStack {
-                Spacer()
-                PrimaryButton(title: isSaving ? String(localized: "saving") : String(localized: "button_save_go_home"), fullWidth: true) {
+        }
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(isSaving ? String(localized: "saving") : String(localized: "button_done")) {
                     saveAndGoHome()
                 }
-                .padding(.horizontal, AppSpacing.lg)
-                .padding(.bottom, AppSpacing.lg)
                 .disabled(isSaving)
             }
         }
-        .navigationBarBackButtonHidden(true)
     }
 
     private var ratingPicker: some View {
@@ -1422,7 +1609,8 @@ struct WorkoutSummaryView: View {
             totalSets: log.totalSets,
             totalVolume: log.totalVolume,
             rating: rating,
-            exerciseFeedbacks: exerciseFeedbacks
+            exerciseFeedbacks: exerciseFeedbacks,
+            status: log.status
         )
         let service = appState.logService
         let coachRequestService = appState.coachRequestService
@@ -1600,17 +1788,23 @@ struct HistoryView: View {
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 4) {
-                    Text(prefs.displayVolume(kg: log.totalVolume))
-                        .font(AppTypography.body.weight(.semibold))
-                        .foregroundColor(AppColors.accent)
-                    HStack(spacing: 2) {
-                        Text(String(format: String(localized: "duration_min_format"), log.durationMinutes))
-                            .font(AppTypography.caption)
-                            .foregroundColor(AppColors.textSecondary)
-                        Text("•")
-                            .foregroundColor(AppColors.textMuted)
-                        Text(String(repeating: "★", count: log.rating))
-                            .font(AppTypography.caption)
+                    if log.status == .missed {
+                        Text("workout_status_missed")
+                            .font(AppTypography.body.weight(.semibold))
+                            .foregroundColor(AppColors.warning)
+                    } else {
+                        Text(prefs.displayVolume(kg: log.totalVolume))
+                            .font(AppTypography.body.weight(.semibold))
+                            .foregroundColor(AppColors.accent)
+                        HStack(spacing: 2) {
+                            Text(String(format: String(localized: "duration_min_format"), log.durationMinutes))
+                                .font(AppTypography.caption)
+                                .foregroundColor(AppColors.textSecondary)
+                            Text("•")
+                                .foregroundColor(AppColors.textMuted)
+                            Text(String(repeating: "★", count: log.rating))
+                                .font(AppTypography.caption)
+                        }
                     }
                 }
             }
