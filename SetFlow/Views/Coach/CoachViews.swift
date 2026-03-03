@@ -4,10 +4,15 @@ import Combine
 import UIKit
 #endif
 
-// MARK: - Coach bottom bar visibility (hide when editing plan)
+// MARK: - Coach bottom bar visibility (hide when in plan editor; show "Add day" in place)
 
 final class CoachBarVisibility: ObservableObject {
+    /// Bar hidden when in plan builder or when a sheet is open.
     @Published var isHidden = false
+    /// When true, show "Add workout day" button in place of the bar (plan builder only, no blur).
+    @Published var showAddDayButton = false
+    /// Called when the replacement button is tapped. Set by PlanBuilderView.
+    var addDayAction: (() -> Void)?
 }
 
 private struct CoachBarVisibilityKey: EnvironmentKey {
@@ -17,6 +22,47 @@ extension EnvironmentValues {
     var coachBarVisibility: CoachBarVisibility? {
         get { self[CoachBarVisibilityKey.self] }
         set { self[CoachBarVisibilityKey.self] = newValue }
+    }
+}
+
+/// Кнопка «Добавить тренировочный день» вместо нижнего бара в редакторе плана. Без blur — не перекрывает контент.
+private struct CoachAddDayReplacementButton: View {
+    let title: String
+    let action: () -> Void
+
+    private static let barHeight: CGFloat = 56
+
+    var body: some View {
+        Button {
+            HapticManager.impact()
+            action()
+        } label: {
+            HStack(spacing: AppSpacing.sm) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                Text(title)
+                    .font(AppTypography.body.weight(.semibold))
+            }
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: Self.barHeight)
+            .background(
+                RoundedRectangle(cornerRadius: AppTheme.Corners.xl, style: .continuous)
+                    .fill(AppColors.accent)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: AppTheme.Corners.xl, style: .continuous)
+                    .strokeBorder(AppColors.strokeSoft.opacity(0.5), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Corners.xl, style: .continuous))
+            .shadow(
+                color: AppTheme.ShadowStyle.lifted.color,
+                radius: AppTheme.ShadowStyle.lifted.radius,
+                x: AppTheme.ShadowStyle.lifted.x,
+                y: AppTheme.ShadowStyle.lifted.y
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -78,17 +124,33 @@ struct CoachTabRootView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .environment(\.coachBarVisibility, coachBarVisibility)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            CoachActionBar(selectedTab: $selectedTab)
+            ZStack(alignment: .bottom) {
+                CoachActionBar(selectedTab: $selectedTab)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 10)
+                    .padding(.bottom, 8)
+                    .opacity(coachBarVisibility.showAddDayButton ? 0 : (coachBarVisibility.isHidden ? 0 : 1))
+                    .offset(y: coachBarVisibility.showAddDayButton ? 80 : (coachBarVisibility.isHidden ? 80 : 0))
+                    .frame(height: coachBarVisibility.showAddDayButton ? 0 : nil)
+                    .clipped()
+                    .allowsHitTesting(!coachBarVisibility.showAddDayButton && !coachBarVisibility.isHidden)
+
+                CoachAddDayReplacementButton(
+                    title: String(localized: "button_add_workout_day"),
+                    action: { coachBarVisibility.addDayAction?() }
+                )
                 .padding(.horizontal, 20)
                 .padding(.top, 10)
                 .padding(.bottom, 8)
-                .frame(height: coachBarVisibility.isHidden ? 0 : nil)
-                .opacity(coachBarVisibility.isHidden ? 0 : 1)
-                .offset(y: coachBarVisibility.isHidden ? 80 : 0)
+                .opacity(coachBarVisibility.showAddDayButton ? 1 : 0)
+                .offset(y: coachBarVisibility.showAddDayButton ? 0 : 80)
+                .frame(height: coachBarVisibility.showAddDayButton ? nil : 0)
                 .clipped()
-                .allowsHitTesting(!coachBarVisibility.isHidden)
+                .allowsHitTesting(coachBarVisibility.showAddDayButton)
+            }
         }
         .animation(.easeInOut(duration: 0.35), value: coachBarVisibility.isHidden)
+        .animation(.easeInOut(duration: 0.35), value: coachBarVisibility.showAddDayButton)
         .onAppear { dashboardVM.load() }
         .onChange(of: dashboardVM.isLoading) { _, isLoading in
             if !isLoading {
@@ -125,6 +187,7 @@ struct CoachTabRootView: View {
         case .signals:
             NavigationStack { CoachSignalsView(appState: appState) }
                 .environment(\.coachBarVisibility, coachBarVisibility)
+                .environmentObject(appState)
         case .profile:
             NavigationStack { CoachProfileView(coach: coach) }
                 .environment(\.coachBarVisibility, coachBarVisibility)
@@ -572,55 +635,10 @@ struct CoachSignalsView: View {
     private func load() async {
         guard let coach = appState.currentUser, coach.role == .coach else { return }
         await MainActor.run { isLoading = true }
+
+        let loadedAthletes: [User]
         do {
-            let loadedAthletes = try await appState.userService.athletesForCoach(coachId: coach.id)
-            let plans = try await appState.planService.plansForCoach(coachId: coach.id)
-            let coachRequests = try await appState.coachRequestService.fetchRequests(coachId: coach.id)
-            let today = Calendar.current.startOfDay(for: Date())
-
-            var trained: [User] = []
-            var missed: [User] = []
-            var inactive: [User] = []
-            var feedback: [User] = []
-
-            for athlete in loadedAthletes {
-                let logs = (try? await appState.logService.logsForAthlete(athleteId: athlete.id, limit: 20)) ?? []
-                let hasWorkoutToday = plans
-                    .first(where: { $0.athleteId == athlete.id })?
-                    .days.contains(where: { Calendar.current.isDate($0.date, inSameDayAs: today) }) ?? false
-                let trainedTodayFlag = logs.contains { Calendar.current.isDate($0.date, inSameDayAs: today) }
-
-                if trainedTodayFlag { trained.append(athlete) }
-                if hasWorkoutToday && !trainedTodayFlag { missed.append(athlete) }
-
-                if let lastSeen = athlete.lastSeenAt {
-                    let daysSinceOpen = Calendar.current.dateComponents(
-                        [.day],
-                        from: Calendar.current.startOfDay(for: lastSeen),
-                        to: today
-                    ).day ?? 0
-                    if daysSinceOpen >= 3 { inactive.append(athlete) }
-                } else {
-                    inactive.append(athlete)
-                }
-
-                let sentFeedbackFlag = logs.contains { log in
-                    log.exerciseFeedbacks.contains {
-                        ($0.note?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) || $0.difficulty != 3
-                    }
-                }
-                if sentFeedbackFlag { feedback.append(athlete) }
-            }
-
-            await MainActor.run {
-                athletes = loadedAthletes
-                requests = coachRequests
-                trainedToday = trained
-                missedToday = missed
-                inactiveAthletes = inactive
-                sentFeedback = feedback
-                isLoading = false
-            }
+            loadedAthletes = try await appState.userService.athletesForCoach(coachId: coach.id)
         } catch {
             await MainActor.run {
                 athletes = []
@@ -631,6 +649,66 @@ struct CoachSignalsView: View {
                 sentFeedback = []
                 isLoading = false
             }
+            return
+        }
+
+        let plans: [WorkoutPlan]
+        do {
+            plans = try await appState.planService.plansForCoach(coachId: coach.id)
+        } catch {
+            plans = []
+        }
+
+        let coachRequests: [CoachRequest]
+        do {
+            coachRequests = try await appState.coachRequestService.fetchRequests(coachId: coach.id)
+        } catch {
+            coachRequests = []
+        }
+
+        let today = Calendar.current.startOfDay(for: Date())
+        var trained: [User] = []
+        var missed: [User] = []
+        var inactive: [User] = []
+        var feedback: [User] = []
+
+        for athlete in loadedAthletes {
+            let logs = (try? await appState.logService.logsForAthlete(athleteId: athlete.id, limit: 20)) ?? []
+            let hasWorkoutToday = plans
+                .first(where: { $0.athleteId == athlete.id })?
+                .days.contains(where: { Calendar.current.isDate($0.date, inSameDayAs: today) }) ?? false
+            let trainedTodayFlag = logs.contains { Calendar.current.isDate($0.date, inSameDayAs: today) }
+
+            if trainedTodayFlag { trained.append(athlete) }
+            if hasWorkoutToday && !trainedTodayFlag { missed.append(athlete) }
+
+            if let lastSeen = athlete.lastSeenAt {
+                let daysSinceOpen = Calendar.current.dateComponents(
+                    [.day],
+                    from: Calendar.current.startOfDay(for: lastSeen),
+                    to: today
+                ).day ?? 0
+                if daysSinceOpen >= 3 { inactive.append(athlete) }
+            } else {
+                inactive.append(athlete)
+            }
+
+            let sentFeedbackFlag = logs.contains { log in
+                log.exerciseFeedbacks.contains {
+                    ($0.note?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) || $0.difficulty != 3
+                }
+            }
+            if sentFeedbackFlag { feedback.append(athlete) }
+        }
+
+        await MainActor.run {
+            athletes = loadedAthletes
+            requests = coachRequests
+            trainedToday = trained
+            missedToday = missed
+            inactiveAthletes = inactive
+            sentFeedback = feedback
+            isLoading = false
         }
     }
 
@@ -1142,21 +1220,25 @@ struct PlanBuilderView: View {
                 }
             }
         }
-        .safeAreaInset(edge: .bottom) {
-            bottomCTA
-        }
         .onAppear {
             viewModel.load()
-            coachBarVisibility?.isHidden = isEditingPlan
+            withAnimation(.easeInOut(duration: 0.35)) {
+                coachBarVisibility?.isHidden = true
+                coachBarVisibility?.showAddDayButton = true
+                coachBarVisibility?.addDayAction = { viewModel.addWorkoutDay() }
+            }
         }
         .onDisappear {
-            withAnimation(.easeInOut(duration: 0.3)) {
+            withAnimation(.easeInOut(duration: 0.35)) {
                 coachBarVisibility?.isHidden = false
+                coachBarVisibility?.showAddDayButton = false
+                coachBarVisibility?.addDayAction = nil
             }
         }
         .onChange(of: isEditingPlan) { _, editing in
-            withAnimation(.easeInOut(duration: 0.3)) {
-                coachBarVisibility?.isHidden = editing
+            withAnimation(.easeInOut(duration: 0.35)) {
+                coachBarVisibility?.isHidden = true
+                coachBarVisibility?.showAddDayButton = !editing
             }
         }
         .sheet(isPresented: $showTemplateSheet) {
@@ -1290,22 +1372,6 @@ struct PlanBuilderView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity)
-    }
-
-    private var bottomCTA: some View {
-        VStack(spacing: 0) {
-            Rectangle()
-                .fill(AppColors.border.opacity(0.3))
-                .frame(height: 1)
-            HStack {
-                PrimaryButton(title: String(localized: "button_add_workout_day"), fullWidth: true) {
-                    viewModel.addWorkoutDay()
-                }
-            }
-            .padding(.horizontal, AppSpacing.lg)
-            .padding(.vertical, AppSpacing.md)
-            .background(AppTheme.Materials.glass)
-        }
     }
 
     private var templateSheet: some View {

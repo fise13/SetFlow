@@ -1,169 +1,86 @@
-# SetFlow
+## SetFlow
 
-**SetFlow** — мобильное приложение для планирования и выполнения тренировок в связке тренер ↔ атлет. Тренер создаёт недельные планы и назначает дни тренировок, атлет видит расписание, выполняет тренировки с таймером отдыха и ведёт историю. Поддерживаются Live Activity (Dynamic Island, экран блокировки) и синхронизация с Apple Watch.
+Мобильное приложение для силовых тренировок, которое связывает **тренера** и **атлета**, синхронизирует планы тренировок и отображает лайв‑метрики с Apple Watch и HealthKit.
 
----
+### Основные возможности
 
-## Возможности
+- **Для тренера**
+  - Управление списком атлетов и их профилями.
+  - Создание и редактирование программ тренировок, дней и упражнений.
+  - Отслеживание выполнения тренировок и прогресса атлетов.
+- **Для атлета**
+  - Получение персональных программ от тренера.
+  - Ведение тренировочного журнала: подходы, повторы, веса, заметки.
+  - Онлайн‑метрики во время тренировки (пульс, калории, время) из Apple Watch.
+  - Экран прогресса с историей активности из HealthKit.
+- **Интеграции**
+  - Apple HealthKit для чтения метрик активности и тренировок.
+  - Apple Watch через `WatchConnectivity` для лайв‑данных во время тренировки.
+  - Firebase (аутентификация пользователя и хранение данных).
+  - Live Activity / виджет для отображения состояния тренировки.
 
-### Роли
+### Технологии
 
-- **Тренер (Coach)**  
-  Дашборд атлетов, создание и редактирование планов по неделям, выбор упражнений из каталога, дублирование недель, шаблоны, отправка обновлений атлетам, инвайт по коду, профиль.
+- **Язык**: Swift (SwiftUI, Combine)
+- **Платформы**: iOS, watchOS
+- **Фреймворки**: FirebaseAuth, HealthKit, WatchConnectivity, WidgetKit / ActivityKit
 
-- **Атлет (Athlete)**  
-  Домашний экран с календарём недели и сегодняшней тренировкой, экран «Тренировка» с живым выполнением (подходы, отдых, смена упражнений), история и прогресс (графики, объём), профиль и настройки.
+### Структура проекта
 
-### Тренировка в реальном времени
+- **`SetFlow/App`**
+  - `FitnessCoachApp.swift` — точка входа в приложение, `AppState` и `RootView` с роутингом между экранами Welcome/Auth/Coach/Athlete.
+- **`SetFlow/Views`**
+  - `Auth` — экраны авторизации, регистрации и выбора роли (коуч / атлет).
+  - `Coach` — вкладки тренера (атлеты, программы, сигналы, профиль).
+  - `Athlete` — вкладки и экраны атлета с планами и выполнением тренировок.
+- **`SetFlow/Services`**
+  - `AuthService`, `AppleSignInHelper` — аутентификация и работа с текущим пользователем.
+  - `WorkoutManager` — единый источник лайв‑метрик тренировки с Apple Watch.
+  - `HealthKitService` — доступ к HealthKit (авторизация, лайв‑метрики, статистика).
+  - `WatchConnectivityManager` — обмен данными между iPhone‑приложением и Apple Watch.
+- **`SetFlow/DesignSystem`**
+  - Цвета, типографика, отступы, скругления, тени, анимации и общие компоненты UI.
+- **`SetFlowWidget`**
+  - Live Activity / виджет для отображения статуса тренировки и ключевых показателей.
 
-- Показ текущего упражнения, подходов, повторений и веса.
-- Таймер отдыха между подходами с возможностью пропуска.
-- Сохранение прогресса при уходе с экрана и восстановление при возврате.
-- Завершение тренировки с итоговой сводкой и сохранением лога.
+### Требования
 
-### Live Activity и Dynamic Island (iOS 16.2+)
+- Современный Xcode (рекомендуется актуальная стабильная версия).
+- iOS / watchOS версий не ниже указанных в настройках таргетов Xcode.
+- Установленный CocoaPods / Swift Package Manager в зависимости от используемых зависимостей.
 
-- Во время активной тренировки запускается Live Activity.
-- **Dynamic Island**: компактный и развёрнутый вид (название тренировки, упражнение, подходы, отдых, объём).
-- **Экран блокировки**: виджет с прогрессом и таймером отдыха.
-- Активность **не завершается** при сворачивании приложения в фон — остаётся в Dynamic Island и на Lock Screen до выхода с экрана тренировки или завершения/досрочного окончания.
+### Запуск проекта
 
-### Apple Watch
+1. **Клонируйте репозиторий**
 
-- Отдельные экраны для списка тренировок, живого выполнения и таймера отдыха (WatchConnectivity).
-
-### Остальное
-
-- **Авторизация**: Firebase Auth (email/пароль), выбор роли при первом входе, привязка к тренеру по инвайт-коду.
-- **Данные**: Firebase Firestore (пользователи, планы, логи тренировок).
-- **Локализация**: английский и русский (`en.lproj`, `ru.lproj`).
-- **Дизайн**: единая тема (цвета, типографика, отступы, карточки) в `AppDesignSystem` / `AppTheme`, стеклянные карточки, скелетоны загрузки.
-
----
-
-## Стек и зависимости
-
-| Технология | Назначение |
-|------------|------------|
-| **SwiftUI** | UI приложения |
-| **Firebase** (SPM) | Auth, Firestore, Analytics, AI (FirebaseAI / FirebaseAILogic) |
-| **ActivityKit** | Live Activity (Dynamic Island, Lock Screen) |
-| **WatchConnectivity** | Синхронизация с Apple Watch |
-
-- Минимальная версия iOS задаётся в Xcode (Target → General → Minimum Deployments).  
-- Live Activity и виджет требуют **iOS 16.2+** (в коде используется `@available(iOS 16.2, *)` и `#available(iOS 16.2, *)`).
-
----
-
-## Структура проекта
-
-```
-SetFlow/
-├── SetFlowApp.swift              # @main, Firebase init, RootView
-├── App/
-│   └── FitnessCoachApp.swift    # AppState, навигация по ролям, загрузка профиля
-├── Views/
-│   ├── Auth/                     # Welcome, SignIn, SignUp, RoleSelection, InviteCode
-│   ├── Athlete/                  # AthleteViews: Home, Workout, LiveWorkout, History, Progress, Profile
-│   ├── Coach/                    # CoachViews: Dashboard, Programs, PlanBuilder, WorkoutEditor, Invite, Profile
-│   └── Watch/                    # WatchViews: список тренировок, живая тренировка, таймер отдыха
-├── Services/
-│   ├── AuthService.swift
-│   ├── UserService.swift
-│   ├── WorkoutPlanService.swift
-│   ├── WorkoutLogService.swift
-│   ├── WorkoutLiveActivityService.swift   # Старт/обновление/завершение Live Activity
-│   ├── CoachRequestService.swift
-│   ├── InviteCodeService.swift
-│   ├── NotificationScheduler.swift
-│   └── WatchConnectivityManager.swift
-├── Models/
-│   ├── WorkoutModels.swift      # User, WorkoutPlan, WorkoutDay, Exercise, Logs, Catalog
-│   └── WorkoutLiveActivityModels.swift  # WorkoutActivityAttributes (общий с виджетом)
-├── DesignSystem/
-│   └── AppDesignSystem.swift    # AppTheme, AppColors, AppTypography, AppSpacing, компоненты
-├── Components/
-│   └── AppComponents.swift      # Кнопки, карточки, скелетоны, общие UI
-├── MockData/
-│   └── MockData.swift
-├── Persistence.swift
-├── en.lproj / ru.lproj          # Localizable.strings
-├── Assets.xcassets
-├── GoogleService-Info.plist     # Конфиг Firebase (не в репозитории — добавить вручную)
-└── SetFlow.xcdatamodeld
-
-SetFlowWidget/                   # Widget Extension (Live Activity)
-├── SetFlowWorkoutLiveActivity.swift  # Lock Screen + Dynamic Island UI
-└── en.lproj / ru.lproj
-
-SetFlow/Models/ (Shared)         # WorkoutLiveActivityModels — общий с виджетом
-```
-
----
-
-## Запуск
-
-1. **Клонировать репозиторий**
    ```bash
    git clone <repo-url>
    cd SetFlow
    ```
 
-2. **Добавить Firebase**
-   - В [Firebase Console](https://console.firebase.google.com/) создать проект и добавить iOS-приложение с bundle ID `fise.SetFlow`.
-   - Скачать `GoogleService-Info.plist` и положить в папку `SetFlow/` (корень основного таргета).
+2. **Откройте проект в Xcode**
+   - Откройте `SetFlow.xcodeproj` или `.xcworkspace` (если используются сторонние менеджеры зависимостей).
 
-3. **Firestore**
-   - Включить Firestore в проекте Firebase.
-   - При необходимости задеплоить индексы:
-     ```bash
-     firebase deploy --only firestore:indexes
-     ```
-   - Индексы описаны в `firestore.indexes.json` (например, для `workoutPlans` по `coachId`/`athleteId` и `createdAt`).
+3. **Настройте Firebase (опционально, при использовании своего проекта)**
+   - Добавьте файл `GoogleService-Info.plist` в iOS‑таргет.
+   - Убедитесь, что идентификатор bundle и настройки Firebase совпадают.
 
-4. **Сборка и запуск**
-   - Открыть `SetFlow.xcodeproj` в Xcode.
-   - Выбрать таргет **SetFlow** и симулятор/устройство.
-   - Собрать и запустить (⌘R).
+4. **Выберите схему и устройство**
+   - В Xcode выберите схему `SetFlow` и цель запуска (симулятор или реальное устройство).
 
-5. **Виджет (Live Activity)**
-   - Таргет **SetFlowWidgetExtension** собирается вместе с приложением. Модели Live Activity (`WorkoutActivityAttributes`) лежат в основном таргете и в shared-группе, виджет использует ту же модель для контента.
+5. **Соберите и запустите**
 
----
-
-## Важные нюансы
-
-### Роль и профиль
-
-- После входа через Firebase загружается профиль из Firestore; по нему определяется роль (`athlete` / `coach`). Если профиля нет — показывается экран выбора роли и создаётся запись пользователя.
-- Атлет может привязаться к тренеру по инвайт-коду (экран ввода кода после выбора роли или в настройках).
-
-### Планы и «сегодня»
-
-- План — это список дней (дата + упражнения). «Сегодняшняя» тренировка для атлета определяется по дате дня в плане. Один день плана = одна тренировка в календаре.
-
-### Live Activity
-
-- Запуск: при появлении экрана живой тренировки (`LiveWorkoutView`) вызывается `WorkoutLiveActivityService.start(...)`.
-- Обновления: при смене подхода, упражнения и при тике таймера отдыха вызываются соответствующие методы `updateForSetDone`, `updateForExerciseChange`, `updateRest`.
-- Завершение: при нажатии «Завершить тренировку» или досрочном окончании — `WorkoutLiveActivityService.complete(...)`; при уходе с экрана тренировки (onDisappear) — `endIfNeeded()`. При переходе приложения в фон активность **не** завершается.
-
-### Редактирование плана (тренер)
-
-- В разделе «План / Неделя» список дней — это кнопки: тап по дню открывает редактор дня в **sheet** (то же поведение, что и «Редактировать» в контекстном меню). Свайпы: удаление и дублирование дня.
+   ```bash
+   # через Xcode: Product → Run
+   ```
 
 ### Локализация
 
-- Ключи в коде через `String(localized: "key")`. Строки в `SetFlow/en.lproj/Localizable.strings` и `SetFlow/ru.lproj/Localizable.strings`. Отдельные файлы для виджета в `SetFlowWidget/.../Localizable.strings`.
+Приложение поддерживает как минимум **английский** и **русский** языки (каталоги `en.lproj` и `ru.lproj` с `Localizable.strings`).
 
----
+### Развитие проекта
 
-## Документация
+- Улучшение дизайн‑системы и анимаций.
+- Расширение аналитики прогресса для тренеров и атлетов.
+- Дополнительные типы метрик и тренировок из HealthKit и Apple Watch.
 
-- `docs/UI-UX-GLOBAL-IMPROVEMENTS.md` — идеи по пустым состояниям, загрузке, онбордингу и плотности экранов.
-
----
-
-## Лицензия
-
-Проприетарный проект. Все права сохраняются.

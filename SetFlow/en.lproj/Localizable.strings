@@ -161,6 +161,7 @@
 "no_workout_today_message" = "Your coach hasn't scheduled a session for today. Check back tomorrow or look at your week on Home.";
 "no_workout_left_today_title" = "No workouts left";
 "no_workout_left_today_message" = "You finished all workouts for today. Great job.";
+"button_open_next_workout" = "Open next workout";
 "workout_completed_lock_title" = "Workout completed";
 "workout_completed_lock_message" = "You can't re-enter this workout. Your coach will add or update your plan when ready.";
 "nav_workout" = "Workout";

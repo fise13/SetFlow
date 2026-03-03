@@ -1,0 +1,598 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		5740298F2F40CF1200E518DC /* FirebaseAI in Frameworks */ = {isa = PBXBuildFile; productRef = 5740298E2F40CF1200E518DC /* FirebaseAI */; };
+		574029912F40CF1200E518DC /* FirebaseAILogic in Frameworks */ = {isa = PBXBuildFile; productRef = 574029902F40CF1200E518DC /* FirebaseAILogic */; };
+		574029932F40CF1200E518DC /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 574029922F40CF1200E518DC /* FirebaseAnalytics */; };
+		574029952F40CF1200E518DC /* FirebaseAnalyticsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 574029942F40CF1200E518DC /* FirebaseAnalyticsCore */; };
+		574029972F40CF1200E518DC /* FirebaseAnalyticsIdentitySupport in Frameworks */ = {isa = PBXBuildFile; productRef = 574029962F40CF1200E518DC /* FirebaseAnalyticsIdentitySupport */; };
+		574029992F40CF1200E518DC /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 574029982F40CF1200E518DC /* FirebaseCore */; };
+		5740299B2F40CF1200E518DC /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 5740299A2F40CF1200E518DC /* FirebaseAuth */; };
+		5740299D2F40CF1200E518DC /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 5740299C2F40CF1200E518DC /* FirebaseFirestore */; };
+		57A100012F41A00000000001 /* SetFlowCCWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 57A100022F41A00000000001 /* SetFlowCCWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		57A100032F41A00000000002 /* WorkoutLiveActivityModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57A100042F41A00000000002 /* WorkoutLiveActivityModels.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		57A1000E2F41A0000000000C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 570F22EA2F39D1F50015D482 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 57A100072F41A00000000005;
+			remoteInfo = SetFlowWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		57A1000C2F41A0000000000A /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				57A100012F41A00000000001 /* SetFlowCCWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		570F22F22F39D1F50015D482 /* SetFlowCC.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SetFlowCC.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		57A100022F41A00000000001 /* SetFlowCCWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SetFlowCCWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		57A100042F41A00000000002 /* WorkoutLiveActivityModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutLiveActivityModels.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		570F22F42F39D1F50015D482 /* SetFlow */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = SetFlow;
+			sourceTree = "<group>";
+		};
+		57A100052F41A00000000003 /* SetFlowWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = SetFlowWidget;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		570F22EF2F39D1F50015D482 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				574029912F40CF1200E518DC /* FirebaseAILogic in Frameworks */,
+				574029972F40CF1200E518DC /* FirebaseAnalyticsIdentitySupport in Frameworks */,
+				5740298F2F40CF1200E518DC /* FirebaseAI in Frameworks */,
+				574029992F40CF1200E518DC /* FirebaseCore in Frameworks */,
+				574029932F40CF1200E518DC /* FirebaseAnalytics in Frameworks */,
+				574029952F40CF1200E518DC /* FirebaseAnalyticsCore in Frameworks */,
+				5740299B2F40CF1200E518DC /* FirebaseAuth in Frameworks */,
+				5740299D2F40CF1200E518DC /* FirebaseFirestore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		57A1000A2F41A00000000008 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		570F22E92F39D1F50015D482 = {
+			isa = PBXGroup;
+			children = (
+				570F22F42F39D1F50015D482 /* SetFlow */,
+				57A100052F41A00000000003 /* SetFlowWidget */,
+				57A100062F41A00000000004 /* Shared */,
+				570F22F32F39D1F50015D482 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		570F22F32F39D1F50015D482 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				570F22F22F39D1F50015D482 /* SetFlowCC.app */,
+				57A100022F41A00000000001 /* SetFlowCCWidgetExtension.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		57A100062F41A00000000004 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				57A100042F41A00000000002 /* WorkoutLiveActivityModels.swift */,
+			);
+			name = Shared;
+			path = SetFlow/Models;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		570F22F12F39D1F50015D482 /* SetFlowCC */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 570F23022F39D1F60015D482 /* Build configuration list for PBXNativeTarget "SetFlowCC" */;
+			buildPhases = (
+				570F22EE2F39D1F50015D482 /* Sources */,
+				570F22EF2F39D1F50015D482 /* Frameworks */,
+				570F22F02F39D1F50015D482 /* Resources */,
+				57A1000C2F41A0000000000A /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				57A1000D2F41A0000000000B /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				570F22F42F39D1F50015D482 /* SetFlow */,
+			);
+			name = SetFlowCC;
+			packageProductDependencies = (
+				5740298E2F40CF1200E518DC /* FirebaseAI */,
+				574029902F40CF1200E518DC /* FirebaseAILogic */,
+				574029922F40CF1200E518DC /* FirebaseAnalytics */,
+				574029942F40CF1200E518DC /* FirebaseAnalyticsCore */,
+				574029962F40CF1200E518DC /* FirebaseAnalyticsIdentitySupport */,
+				574029982F40CF1200E518DC /* FirebaseCore */,
+				5740299A2F40CF1200E518DC /* FirebaseAuth */,
+				5740299C2F40CF1200E518DC /* FirebaseFirestore */,
+			);
+			productName = SetFlow;
+			productReference = 570F22F22F39D1F50015D482 /* SetFlowCC.app */;
+			productType = "com.apple.product-type.application";
+		};
+		57A100072F41A00000000005 /* SetFlowCCWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 57A100082F41A00000000006 /* Build configuration list for PBXNativeTarget "SetFlowCCWidgetExtension" */;
+			buildPhases = (
+				57A100092F41A00000000007 /* Sources */,
+				57A1000A2F41A00000000008 /* Frameworks */,
+				57A1000B2F41A00000000009 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				57A100052F41A00000000003 /* SetFlowWidget */,
+			);
+			name = SetFlowCCWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = SetFlowWidgetExtension;
+			productReference = 57A100022F41A00000000001 /* SetFlowCCWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		570F22EA2F39D1F50015D482 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2620;
+				LastUpgradeCheck = 2620;
+				TargetAttributes = {
+					570F22F12F39D1F50015D482 = {
+						CreatedOnToolsVersion = 26.2;
+					};
+					57A100072F41A00000000005 = {
+						CreatedOnToolsVersion = 26.2;
+					};
+				};
+			};
+			buildConfigurationList = 570F22ED2F39D1F50015D482 /* Build configuration list for PBXProject "SetFlowCC" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+				ru,
+			);
+			mainGroup = 570F22E92F39D1F50015D482;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				5740298D2F40CF1200E518DC /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 570F22F32F39D1F50015D482 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				570F22F12F39D1F50015D482 /* SetFlowCC */,
+				57A100072F41A00000000005 /* SetFlowCCWidgetExtension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		570F22F02F39D1F50015D482 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		57A1000B2F41A00000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		570F22EE2F39D1F50015D482 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		57A100092F41A00000000007 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				57A100032F41A00000000002 /* WorkoutLiveActivityModels.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		57A1000D2F41A0000000000B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 57A100072F41A00000000005 /* SetFlowCCWidgetExtension */;
+			targetProxy = 57A1000E2F41A0000000000C /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		570F23002F39D1F60015D482 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 45W7LA3QFP;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		570F23012F39D1F60015D482 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 45W7LA3QFP;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		570F23032F39D1F60015D482 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = SetFlow/SetFlow.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 45W7LA3QFP;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.sports";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "SetFlow uses heart rate and workout data to show live stats during your Apple Watch workouts.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIStatusBarHidden = YES;
+				INFOPLIST_KEY_UIStatusBarStyle = "";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = fise.SetFlowCC;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		570F23042F39D1F60015D482 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = SetFlow/SetFlow.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 45W7LA3QFP;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.sports";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "SetFlow uses heart rate and workout data to show live stats during your Apple Watch workouts.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIStatusBarHidden = YES;
+				INFOPLIST_KEY_UIStatusBarStyle = "";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = fise.SetFlowCC;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		57A100102F41A0000000000E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 45W7LA3QFP;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "SetFlowWidgetExtension-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "SetFlow Workout";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = fise.SetFlowCC.SetFlowWidgetExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				WRAPPER_EXTENSION = appex;
+			};
+			name = Debug;
+		};
+		57A100112F41A0000000000F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 45W7LA3QFP;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "SetFlowWidgetExtension-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "SetFlow Workout";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = fise.SetFlowCC.SetFlowWidgetExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				WRAPPER_EXTENSION = appex;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		570F22ED2F39D1F50015D482 /* Build configuration list for PBXProject "SetFlowCC" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				570F23002F39D1F60015D482 /* Debug */,
+				570F23012F39D1F60015D482 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		570F23022F39D1F60015D482 /* Build configuration list for PBXNativeTarget "SetFlowCC" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				570F23032F39D1F60015D482 /* Debug */,
+				570F23042F39D1F60015D482 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		57A100082F41A00000000006 /* Build configuration list for PBXNativeTarget "SetFlowCCWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				57A100102F41A0000000000E /* Debug */,
+				57A100112F41A0000000000F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		5740298D2F40CF1200E518DC /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.9.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		5740298E2F40CF1200E518DC /* FirebaseAI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5740298D2F40CF1200E518DC /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAI;
+		};
+		574029902F40CF1200E518DC /* FirebaseAILogic */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5740298D2F40CF1200E518DC /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAILogic;
+		};
+		574029922F40CF1200E518DC /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5740298D2F40CF1200E518DC /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
+		};
+		574029942F40CF1200E518DC /* FirebaseAnalyticsCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5740298D2F40CF1200E518DC /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalyticsCore;
+		};
+		574029962F40CF1200E518DC /* FirebaseAnalyticsIdentitySupport */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5740298D2F40CF1200E518DC /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalyticsIdentitySupport;
+		};
+		574029982F40CF1200E518DC /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5740298D2F40CF1200E518DC /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		5740299A2F40CF1200E518DC /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5740298D2F40CF1200E518DC /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		5740299C2F40CF1200E518DC /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5740298D2F40CF1200E518DC /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 570F22EA2F39D1F50015D482 /* Project object */;
+}

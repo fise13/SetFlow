@@ -3,6 +3,7 @@
 "live_activity_active" = "Активно";
 "live_activity_completed" = "Готово";
 "live_activity_next_exercise" = "След. упр.";
+"live_activity_workout_description" = "Прогресс тренировки и Live Activity.";
 "live_stat_sets" = "Подходы";
 "rest_seconds_format" = "%dс";
 "set_progress_format" = "Подход %d / %d";

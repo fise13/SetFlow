@@ -9,10 +9,42 @@ import ActivityKit
 import WidgetKit
 import SwiftUI
 
+// MARK: - Placeholder home screen widget (so extension can be shown; Live Activity is app-driven)
+@available(iOS 16.2, *)
+struct SetFlowPlaceholderWidget: Widget {
+    let kind: String = "SetFlowPlaceholder"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: Provider()) { _ in
+            SetFlowPlaceholderView()
+        }
+        .configurationDisplayName(String(localized: "SetFlow Workout"))
+        .description(String(localized: "live_activity_workout_description"))
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryCircular, .accessoryRectangular])
+    }
+}
+
+private struct Provider: TimelineProvider {
+    func placeholder(in context: Context) -> SimpleEntry { SimpleEntry(date: .now) }
+    func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> Void) { completion(SimpleEntry(date: .now)) }
+    func getTimeline(in context: Context, completion: @escaping (Timeline<SimpleEntry>) -> Void) {
+        completion(Timeline(entries: [SimpleEntry(date: .now)], policy: .never))
+    }
+}
+
+private struct SimpleEntry: TimelineEntry { let date: Date }
+
+private struct SetFlowPlaceholderView: View {
+    var body: some View {
+        Label("SetFlow", systemImage: "figure.strengthtraining.traditional")
+    }
+}
+
 @available(iOS 16.2, *)
 @main
 struct SetFlowWidgetBundle: WidgetBundle {
     var body: some Widget {
+        SetFlowPlaceholderWidget()
         SetFlowWorkoutLiveActivity()
     }
 }
