@@ -32,6 +32,27 @@ enum AthleteTab: String, CaseIterable {
     }
 }
 
+// MARK: - Tab ↔ AthleteTab (WorkoutActionBar)
+
+extension Tab {
+    init(from athleteTab: AthleteTab) {
+        switch athleteTab {
+        case .home: self = .home
+        case .workout: self = .home
+        case .progress: self = .stats
+        case .profile: self = .saved
+        }
+    }
+
+    func toAthleteTab() -> AthleteTab {
+        switch self {
+        case .home: return .home
+        case .stats: return .progress
+        case .saved: return .profile
+        }
+    }
+}
+
 struct AthleteTabRootView: View {
     let user: User
     @ObservedObject var appState: AppState
@@ -48,16 +69,26 @@ struct AthleteTabRootView: View {
         _homeViewModel = StateObject(wrappedValue: AthleteHomeViewModel(user: user, planService: appState.planService, logService: appState.logService))
     }
 
+    /// На экране Workout (после Start) бар не подсвечивает ни одну иконку.
+    private var actionBarTabBinding: Binding<Tab?> {
+        Binding(
+            get: { selectedTab == .workout ? nil : Tab(from: selectedTab) },
+            set: { if let t = $0 { selectedTab = t.toAthleteTab() } }
+        )
+    }
+
     var body: some View {
         TabView(selection: $selectedTab) {
             NavigationStack {
                 AthleteHomeView(viewModel: homeViewModel)
+                    .toolbar(.hidden, for: .tabBar)
             }
             .tabItem { Label(AthleteTab.home.title, systemImage: AthleteTab.home.systemImage) }
             .tag(AthleteTab.home)
 
             NavigationStack {
                 workoutTabContent
+                    .toolbar(.hidden, for: .tabBar)
             }
             .environment(\.popToHome) { selectedTab = .home }
             .tabItem { Label(AthleteTab.workout.title, systemImage: AthleteTab.workout.systemImage) }
@@ -65,21 +96,30 @@ struct AthleteTabRootView: View {
 
             NavigationStack {
                 AthleteProgressView(logs: homeViewModel.history)
+                    .toolbar(.hidden, for: .tabBar)
             }
             .tabItem { Label(AthleteTab.progress.title, systemImage: AthleteTab.progress.systemImage) }
             .tag(AthleteTab.progress)
 
             NavigationStack {
                 AthleteProfileSettingsView(user: user, appState: appState)
+                    .toolbar(.hidden, for: .tabBar)
             }
             .tabItem { Label(AthleteTab.profile.title, systemImage: AthleteTab.profile.systemImage) }
             .tag(AthleteTab.profile)
         }
         .tabViewStyle(.automatic)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            WorkoutActionBar(selectedTab: actionBarTabBinding, onStart: { selectedTab = .workout })
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+                .padding(.bottom, 8)
+        }
         .onAppear {
             homeViewModel.load()
             NotificationScheduler.shared.requestAuthorization { _ in }
+            Task { await appState.workoutManager.requestAuthorization() }
         }
         .onChange(of: selectedTab) { _, newTab in
             if newTab == .home { homeViewModel.load() }
@@ -90,8 +130,10 @@ struct AthleteTabRootView: View {
             }
         }
         .fullScreenCover(isPresented: $showFirstRunOnboarding) {
+            let prefsCopy = prefs
+            let userIdCopy = user.id
             AthleteFirstRunOnboardingView {
-                prefs.markFirstRunOnboardingSeen(role: .athlete, userId: user.id)
+                prefsCopy.markFirstRunOnboardingSeen(role: .athlete, userId: userIdCopy)
                 showFirstRunOnboarding = false
             }
         }
@@ -116,38 +158,32 @@ struct AthleteTabRootView: View {
             return false
         }
         ZStack {
-            AppColors.background.ignoresSafeArea()
-            VStack(spacing: AppSpacing.xl) {
-                Spacer()
-                GlassCard {
-                    VStack(spacing: AppSpacing.lg) {
-                        Image(systemName: "calendar.badge.clock")
-                            .font(.system(size: 44))
-                            .foregroundColor(AppColors.textMuted)
-                        Text(homeViewModel.todayWorkout != nil ? "no_workout_left_today_title" : "no_workout_today_title")
-                            .font(AppTypography.title2)
-                        Text(homeViewModel.todayWorkout != nil ? "no_workout_left_today_message" : "no_workout_today_message")
-                            .font(AppTypography.body)
-                            .foregroundColor(AppColors.textSecondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                        if let nextWorkout {
-                            NavigationLink {
-                                WorkoutDetailView(workoutDay: nextWorkout, athleteId: user.id)
-                            } label: {
-                                SecondaryButtonLabel(title: String(localized: "button_open_next_workout"), fullWidth: true)
+            AppBackground()
+            ScrollView {
+                GlassCard(cornerRadius: AppTheme.Corners.xl) {
+                    EmptyStateView(
+                        icon: "calendar.badge.clock",
+                        title: String(localized: homeViewModel.todayWorkout != nil ? "no_workout_left_today_title" : "no_workout_today_title"),
+                        message: String(localized: homeViewModel.todayWorkout != nil ? "no_workout_left_today_message" : "no_workout_today_message"),
+                        cta: {
+                            if let nextWorkout {
+                                NavigationLink {
+                                    WorkoutDetailView(workoutDay: nextWorkout, athleteId: user.id)
+                                } label: {
+                                    SecondaryButtonLabel(title: String(localized: "button_open_next_workout"), fullWidth: true)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
-                    }
-                    .padding(.vertical, AppSpacing.xxl)
+                    )
                 }
                 .padding(.horizontal, AppSpacing.lg)
-                Spacer()
+                .padding(.vertical, AppSpacing.xxl)
             }
         }
         .navigationTitle("nav_workout")
         .navigationBarTitleDisplayMode(.inline)
+        .softNavigationBarBackground()
     }
     
     private func evaluateFirstRunOnboardingIfNeeded() {
@@ -348,36 +384,37 @@ struct AthleteHomeView: View {
     @ObservedObject var viewModel: AthleteHomeViewModel
     @ObservedObject private var prefs = AppPreferences.shared
     @State private var selectedDate: Date = Date()
-    
+
     var body: some View {
         ZStack(alignment: .bottom) {
-            LinearGradient(
-                colors: [
-                    AppColors.background,
-                    AppColors.backgroundElevated
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-            
+            AppBackground()
+
             if viewModel.isLoading {
                 homeSkeleton
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: AppSpacing.xl) {
+                    VStack(alignment: .leading, spacing: AppSpacing.xxl) {
                         header
+                            .softAppear(delay: 0)
                         todayHero
+                            .softAppear(delay: 0.05)
                         weeklyStrip
+                            .softAppear(delay: 0.1)
                         quickStats
+                            .softAppear(delay: 0.15)
                         recentWorkouts
+                            .softAppear(delay: 0.2)
                     }
-                    .padding(.vertical, AppSpacing.lg)
+                    .padding(.top, AppSpacing.lg)
+                    .padding(.bottom, AppSpacing.xxxl)
+                    .padding(.horizontal, AppSpacing.lg)
                 }
+                .refreshable { await MainActor.run { viewModel.load() } }
             }
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        .softNavigationBarBackground()
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 Text("today")
@@ -390,6 +427,7 @@ struct AthleteHomeView: View {
                     HistoryView(logs: viewModel.history)
                 } label: {
                     Image(systemName: "clock.arrow.circlepath")
+                        .foregroundColor(AppColors.textSecondary)
                 }
             }
         }
@@ -397,63 +435,58 @@ struct AthleteHomeView: View {
     
     private var homeSkeleton: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: AppSpacing.lg) {
-                VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                    SkeletonBar(width: 180, height: 28)
-                    SkeletonBar(width: 240, height: 14)
+            VStack(alignment: .leading, spacing: AppSpacing.xxl) {
+                VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                    SkeletonBar(width: 180, height: 32)
+                    SkeletonBar(width: 240, height: 16)
                 }
-                .padding(.horizontal, AppSpacing.lg)
-                
-                GlassCard(cornerRadius: AppTheme.Corners.lg) {
+                GlassCard(cornerRadius: AppTheme.Corners.xl) {
                     VStack(alignment: .leading, spacing: AppSpacing.md) {
                         SkeletonBar(width: 160, height: 18)
                         SkeletonBar(width: 240, height: 12)
                         SkeletonBar(width: 120, height: 12)
                     }
-                    .padding(.vertical, AppSpacing.sm)
+                    .padding(AppSpacing.md)
                 }
-                .padding(.horizontal, AppSpacing.lg)
-                
                 HStack(spacing: AppSpacing.md) {
                     SkeletonCard()
                     SkeletonCard()
                 }
-                .padding(.horizontal, AppSpacing.lg)
-                
                 SkeletonCard()
-                    .padding(.horizontal, AppSpacing.lg)
                 SkeletonCard()
-                    .padding(.horizontal, AppSpacing.lg)
             }
-            .padding(.vertical, AppSpacing.lg)
+            .padding(.top, AppSpacing.lg)
+            .padding(.bottom, AppSpacing.xxxl)
+            .padding(.horizontal, AppSpacing.lg)
         }
     }
     
     private var header: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
             Text("Hi, \(viewModel.user.name.split(separator: " ").first ?? "Athlete")")
-                .font(AppTypography.title1)
+                .font(AppTypography.largeTitle)
+                .foregroundColor(AppColors.textPrimary)
             Text("home_greeting_subtitle")
                 .font(AppTypography.body)
                 .foregroundColor(AppColors.textSecondary)
         }
-        .padding(.horizontal, AppSpacing.lg)
     }
     
     private var todayHero: some View {
         Group {
             if let today = viewModel.todayWorkout {
                 if viewModel.isWorkoutLoggedToday(today) {
-                    GlassCard {
-                        VStack(alignment: .leading, spacing: AppSpacing.md) {
+                    GlassCard(cornerRadius: AppTheme.Corners.xl) {
+                        VStack(alignment: .leading, spacing: AppSpacing.sm) {
                             Text("no_workout_left_today_title")
                                 .font(AppTypography.headline)
                             Text("no_workout_left_today_message")
                                 .font(AppTypography.body)
                                 .foregroundColor(AppColors.textSecondary)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(AppSpacing.md)
                     }
-                    .padding(.horizontal, AppSpacing.lg)
                 } else {
                     WorkoutHeroCard(
                         title: today.title,
@@ -461,19 +494,19 @@ struct AthleteHomeView: View {
                         detail: "\(today.exercises.count) exercises",
                         progress: viewModel.todayProgress
                     )
-                    .padding(.horizontal, AppSpacing.lg)
                 }
             } else {
-                GlassCard {
-                    VStack(alignment: .leading, spacing: AppSpacing.md) {
+                GlassCard(cornerRadius: AppTheme.Corners.xl) {
+                    VStack(alignment: .leading, spacing: AppSpacing.sm) {
                         Text("no_workout_today")
                             .font(AppTypography.headline)
                         Text("no_workout_today_desc")
                             .font(AppTypography.body)
                             .foregroundColor(AppColors.textSecondary)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(AppSpacing.md)
                 }
-                .padding(.horizontal, AppSpacing.lg)
             }
         }
     }
@@ -509,16 +542,16 @@ struct AthleteHomeView: View {
                             .font(AppTypography.caption)
                             .foregroundColor(AppColors.textSecondary)
                     }
+                    .padding(AppSpacing.sm)
                 }
-                .padding(.horizontal, AppSpacing.lg)
             } else {
                 GlassCard(cornerRadius: AppTheme.Corners.md) {
                     Text("no_workout_selected_day")
                         .font(AppTypography.footnote)
                         .foregroundColor(AppColors.textSecondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(AppSpacing.sm)
                 }
-                .padding(.horizontal, AppSpacing.lg)
             }
         }
     }
@@ -532,15 +565,13 @@ struct AthleteHomeView: View {
             AthleteStatTile(title: String(localized: "stat_streak"), value: streak, subtitle: streakSubtitle + " " + String(localized: "in_a_row"), icon: "flame.fill")
             AthleteStatTile(title: String(localized: "stat_volume"), value: volume, subtitle: String(localized: "this_week"), icon: "chart.bar.fill")
         }
-        .padding(.horizontal, AppSpacing.lg)
         .padding(.bottom, AppSpacing.sm)
         .overlay(
             HStack {
                 Spacer()
                 AthleteStatTile(title: String(localized: "stat_next"), value: viewModel.nextWorkoutTitle, subtitle: String(localized: "planned"), icon: "calendar.badge.clock")
                     .frame(width: 170)
-            }
-            .padding(.trailing, AppSpacing.lg),
+            },
             alignment: .bottom
         )
     }
@@ -561,26 +592,17 @@ struct AthleteHomeView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, AppSpacing.lg)
             .padding(.vertical, AppSpacing.sm)
             
             if viewModel.history.isEmpty {
-                GlassCard(cornerRadius: AppTheme.Corners.md) {
-                    VStack(spacing: AppSpacing.sm) {
-                        Image(systemName: "figure.run")
-                            .font(.system(size: 32))
-                            .foregroundColor(AppColors.textMuted)
-                        Text("no_workouts_yet")
-                            .font(AppTypography.headline)
-                        Text("no_workouts_yet_desc")
-                            .font(AppTypography.footnote)
-                            .foregroundColor(AppColors.textSecondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, AppSpacing.xl)
+                GlassCard(cornerRadius: AppTheme.Corners.lg) {
+                    EmptyStateView(
+                        icon: "figure.run",
+                        title: String(localized: "no_workouts_yet"),
+                        message: String(localized: "no_workouts_yet_desc"),
+                        compact: true
+                    )
                 }
-                .padding(.horizontal, AppSpacing.lg)
             } else {
                 VStack(spacing: AppSpacing.sm) {
                     ForEach(Array(viewModel.history.prefix(3))) { log in
@@ -611,7 +633,6 @@ struct AthleteHomeView: View {
                         }
                     }
                 }
-                .padding(.horizontal, AppSpacing.lg)
             }
         }
     }
@@ -625,42 +646,51 @@ struct AthleteHomeView: View {
 
 struct AthleteFirstRunOnboardingView: View {
     var onContinue: () -> Void
-    
+
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color(red: 0.08, green: 0.10, blue: 0.16), Color(red: 0.03, green: 0.13, blue: 0.22)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-            
-            VStack(spacing: AppSpacing.xl) {
-                Spacer()
-                Image(systemName: "figure.strengthtraining.traditional")
-                    .font(.system(size: 44, weight: .semibold))
-                    .foregroundColor(.white)
-                    .padding()
-                    .background(Circle().fill(Color.white.opacity(0.14)))
-                
-                VStack(spacing: AppSpacing.md) {
-                    Text("first_run_athlete_title")
-                        .font(AppTypography.title1)
-                        .foregroundColor(.white)
-                    Text("first_run_athlete_message")
-                        .font(AppTypography.body)
-                        .foregroundColor(Color.white.opacity(0.85))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, AppSpacing.xl)
-                }
-                Spacer()
+            AppBackground()
+            VStack {
+                Spacer(minLength: 0)
+                contentCard
+                Spacer(minLength: 0)
                 PrimaryActionButton(title: String(localized: "first_run_athlete_action")) {
                     onContinue()
                 }
-                .padding(.horizontal, AppSpacing.lg)
-                .padding(.bottom, AppSpacing.xl)
+                .padding(.horizontal, 24)
+                .padding(.bottom, AppSpacing.xxl)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private var contentCard: some View {
+        VStack(spacing: AppSpacing.xl) {
+            Image(systemName: "figure.strengthtraining.traditional")
+                .font(.system(size: 48, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppColors.accent)
+                .frame(width: 96, height: 96)
+                .background(Circle().fill(AppColors.accent.opacity(0.12)))
+            VStack(spacing: AppSpacing.sm) {
+                Text("first_run_athlete_title")
+                    .font(AppTypography.title2)
+                    .foregroundColor(AppColors.textPrimary)
+                Text("first_run_athlete_message")
+                    .font(AppTypography.body)
+                    .foregroundColor(AppColors.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, AppSpacing.lg)
             }
         }
+        .padding(.vertical, AppSpacing.xxxl)
+        .padding(.horizontal, AppSpacing.xxl)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(Color(.systemBackground))
+                .shadow(color: Color.black.opacity(0.06), radius: 16, x: 0, y: 8)
+        )
+        .padding(.horizontal, 24)
     }
 }
 
@@ -698,19 +728,23 @@ struct WorkoutDetailView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            AppColors.background.ignoresSafeArea()
+            AppBackground()
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.lg) {
                     if isCompletedLock {
                         completedLockBlock
+                            .softAppear(delay: 0)
                     }
                     preflightBlock
+                        .softAppear(delay: 0.05)
                     if !isCompletedLock {
                         schedulingBlock
+                            .softAppear(delay: 0.1)
                     }
                     if !workoutDay.exercises.isEmpty && !isCompletedLock {
                         SectionHeader(title: String(localized: "section_exercises"), actionTitle: nil, action: nil)
                         exercisesList
+                            .softAppear(delay: 0.15)
                     }
                     Spacer(minLength: 100)
                 }
@@ -907,7 +941,7 @@ struct WorkoutDetailView: View {
     private func scheduleSheet(title: String, confirmTitle: String, action: @escaping () -> Void) -> some View {
         NavigationStack {
             ZStack {
-                AppColors.background.ignoresSafeArea()
+                AppBackground()
                 VStack(spacing: AppSpacing.lg) {
                     DatePicker(
                         "",
@@ -1048,7 +1082,7 @@ struct WorkoutDetailView: View {
             Group {
                 if canStart {
                     NavigationLink {
-                        LiveWorkoutView(workoutDay: workoutDay, athleteId: athleteId)
+                        LiveWorkoutView(workoutDay: workoutDay, athleteId: athleteId, workoutManager: appState.workoutManager)
                     } label: {
                         PrimaryActionButtonLabel(title: String(localized: "button_start_workout"), icon: "play.fill")
                     }
@@ -1074,6 +1108,54 @@ struct WorkoutDetailView: View {
             .padding(.horizontal, AppSpacing.lg)
             .padding(.bottom, AppSpacing.lg)
         }
+    }
+}
+
+// MARK: - HealthKit Live Stats Bar (data from Apple Watch via WorkoutManager)
+
+struct HealthKitLiveStatsBar: View {
+    @ObservedObject var workoutManager: WorkoutManager
+
+    var body: some View {
+        GlassCard(cornerRadius: AppTheme.Corners.md) {
+            HStack {
+                statColumn(value: heartRateText, label: "HR")
+                Spacer()
+                statColumn(value: caloriesText, label: "Cal")
+                Spacer()
+                statColumn(value: durationText, label: "Time")
+            }
+            .opacity(workoutManager.workoutState == .paused ? 0.7 : 1)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, AppSpacing.lg)
+        .padding(.top, AppSpacing.sm)
+    }
+
+    private func statColumn(value: String, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value)
+                .font(AppTypography.headline)
+            Text(label)
+                .font(AppTypography.caption)
+                .foregroundColor(AppColors.textSecondary)
+        }
+    }
+
+    private var heartRateText: String {
+        guard let bpm = workoutManager.currentHeartRate else { return "—" }
+        return "\(Int(bpm))"
+    }
+
+    private var caloriesText: String {
+        "\(Int(workoutManager.activeCalories))"
+    }
+
+    private var durationText: String {
+        let t = Int(workoutManager.elapsedTime)
+        let m = t / 60
+        let s = t % 60
+        return String(format: "%d:%02d", m, s)
     }
 }
 
@@ -1386,14 +1468,16 @@ final class LiveWorkoutViewModel: ObservableObject {
 
 struct LiveWorkoutView: View {
     @ObservedObject var viewModel: LiveWorkoutViewModel
+    @ObservedObject var workoutManager: WorkoutManager
     @ObservedObject private var prefs = AppPreferences.shared
     @Environment(\.scenePhase) private var scenePhase
     let athleteId: String
     @State private var showSummary = false
     @State private var showEndWorkoutConfirmation = false
 
-    init(workoutDay: WorkoutDay, athleteId: String) {
+    init(workoutDay: WorkoutDay, athleteId: String, workoutManager: WorkoutManager = .shared) {
         self.viewModel = LiveWorkoutViewModel(workoutDay: workoutDay)
+        self.workoutManager = workoutManager
         self.athleteId = athleteId
     }
 
@@ -1513,8 +1597,11 @@ struct LiveWorkoutView: View {
 
     var body: some View {
         ZStack {
-            AppColors.background.ignoresSafeArea()
+            AppBackground()
             VStack(spacing: 0) {
+                if workoutManager.workoutState != .idle {
+                    HealthKitLiveStatsBar(workoutManager: workoutManager)
+                }
                 if !viewModel.isWorkoutComplete {
                     liveStatusBar
                 }
@@ -1755,7 +1842,7 @@ struct WorkoutSummaryView: View {
 
     var body: some View {
         ZStack {
-            AppColors.background.ignoresSafeArea()
+            AppBackground()
             ScrollView {
                 VStack(spacing: AppSpacing.xl) {
                     Image(systemName: "checkmark.seal.fill")
@@ -1994,7 +2081,7 @@ struct HistoryView: View {
 
     var body: some View {
         ZStack {
-            AppColors.background.ignoresSafeArea()
+            AppBackground()
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.lg) {
                     filterPicker
@@ -2025,6 +2112,7 @@ struct HistoryView: View {
         }
         .navigationTitle("nav_history")
         .navigationBarTitleDisplayMode(.inline)
+        .softNavigationBarBackground()
     }
 
     private var filterPicker: some View {
@@ -2114,19 +2202,11 @@ struct HistoryView: View {
 
     private var historyEmptyState: some View {
         GlassCard(cornerRadius: AppTheme.Corners.lg) {
-            VStack(spacing: AppSpacing.lg) {
-                Image(systemName: "figure.run")
-                    .font(.system(size: 44))
-                    .foregroundColor(AppColors.textMuted)
-                Text("no_workouts_logged")
-                    .font(AppTypography.title2)
-                Text("no_workouts_logged_desc")
-                    .font(AppTypography.body)
-                    .foregroundColor(AppColors.textSecondary)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, AppSpacing.xxl)
+            EmptyStateView(
+                icon: "figure.run",
+                title: String(localized: "no_workouts_logged"),
+                message: String(localized: "no_workouts_logged_desc")
+            )
         }
         .padding(.horizontal, AppSpacing.lg)
     }
@@ -2143,6 +2223,11 @@ struct HistoryView: View {
 struct AthleteProgressView: View {
     let logs: [WorkoutLog]
     @ObservedObject private var prefs = AppPreferences.shared
+
+    @State private var healthCaloriesByDay: [(date: Date, calories: Double)] = []
+    @State private var healthTotalCalories: Double = 0
+    @State private var healthWorkoutCount: Int = 0
+    @State private var healthLoading = true
 
     private var streakDays: Int {
         let cal = Calendar.current
@@ -2161,22 +2246,35 @@ struct AthleteProgressView: View {
     private var maxVolumeLogged: Double {
         logs.map(\.totalVolume).max() ?? 0
     }
-    
+
+    private func loadHealthData() async {
+        healthLoading = true
+        let byDay = await HealthKitService.shared.fetchActiveEnergyByDay(lastDays: 30)
+        let total = await HealthKitService.shared.fetchTotalActiveEnergy(lastDays: 30)
+        let workouts = await HealthKitService.shared.fetchWorkoutCount(lastDays: 30)
+        await MainActor.run {
+            healthCaloriesByDay = byDay
+            healthTotalCalories = total
+            healthWorkoutCount = workouts
+            healthLoading = false
+        }
+    }
+
     var body: some View {
         ZStack {
-            AppColors.background.ignoresSafeArea()
+            AppBackground()
             ScrollView {
-                VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                VStack(alignment: .leading, spacing: AppSpacing.xxl) {
                     SectionHeader(
                         title: String(localized: "section_progress"),
                         subtitle: String(localized: "progress_subtitle")
                     )
-                    
-                    GlassCard {
+
+                    GlassCard(cornerRadius: AppTheme.Corners.xl) {
                         VStack(alignment: .leading, spacing: AppSpacing.md) {
                             Text("training_volume")
                                 .font(AppTypography.headline)
-                            
+
                             #if canImport(Charts)
                             if logs.isEmpty {
                                 Text("complete_workouts_for_chart")
@@ -2211,13 +2309,21 @@ struct AthleteProgressView: View {
                                 )
                             #endif
                         }
+                        .padding(AppSpacing.md)
                     }
-                    
+
+                    SectionHeader(
+                        title: String(localized: "section_health"),
+                        subtitle: String(localized: "health_subtitle")
+                    )
+
+                    healthSection
+
                     SectionHeader(
                         title: String(localized: "section_highlights"),
                         subtitle: String(localized: "highlights_subtitle")
                     )
-                    
+
                     VStack(spacing: AppSpacing.md) {
                         AthleteStatTile(
                             title: String(localized: "current_streak"),
@@ -2232,13 +2338,88 @@ struct AthleteProgressView: View {
                             icon: "scalemass"
                         )
                     }
-                    .padding(.horizontal, AppSpacing.lg)
                 }
-                .padding(.vertical, AppSpacing.lg)
+                .padding(.top, AppSpacing.lg)
+                .padding(.bottom, AppSpacing.xxxl)
+                .padding(.horizontal, AppSpacing.lg)
             }
         }
         .navigationTitle("nav_progress")
         .navigationBarTitleDisplayMode(.inline)
+        .softNavigationBarBackground()
+        .onAppear {
+            Task { await loadHealthData() }
+        }
+    }
+
+    @ViewBuilder
+    private var healthSection: some View {
+        if healthLoading {
+            GlassCard(cornerRadius: AppTheme.Corners.xl) {
+                HStack {
+                    ProgressView()
+                        .tint(AppColors.accent)
+                    Text("health_loading")
+                        .font(AppTypography.footnote)
+                        .foregroundColor(AppColors.textSecondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(AppSpacing.xl)
+            }
+        } else if healthCaloriesByDay.isEmpty && healthWorkoutCount == 0 {
+            GlassCard(cornerRadius: AppTheme.Corners.xl) {
+                Text("health_no_data")
+                    .font(AppTypography.footnote)
+                    .foregroundColor(AppColors.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(AppSpacing.xl)
+            }
+        } else {
+            VStack(spacing: AppSpacing.md) {
+                #if canImport(Charts)
+                if !healthCaloriesByDay.isEmpty {
+                    GlassCard(cornerRadius: AppTheme.Corners.xl) {
+                        VStack(alignment: .leading, spacing: AppSpacing.md) {
+                            Text("health_calories_total")
+                                .font(AppTypography.headline)
+                            Chart {
+                                ForEach(Array(healthCaloriesByDay.enumerated()), id: \.offset) { _, item in
+                                    BarMark(
+                                        x: .value("Date", item.date),
+                                        y: .value("Cal", item.calories)
+                                    )
+                                    .foregroundStyle(AppColors.primaryAccentLime.opacity(0.9))
+                                }
+                            }
+                            .chartXAxis {
+                                AxisMarks(values: .stride(by: .day, count: 5))
+                            }
+                            .frame(height: 180)
+                            Text("\(Int(healthTotalCalories)) kcal total")
+                                .font(AppTypography.caption)
+                                .foregroundColor(AppColors.textSecondary)
+                        }
+                        .padding(AppSpacing.md)
+                    }
+                }
+                #endif
+                HStack(spacing: AppSpacing.md) {
+                    AthleteStatTile(
+                        title: String(localized: "health_calories_total"),
+                        value: healthTotalCalories == 0 ? "—" : "\(Int(healthTotalCalories))",
+                        subtitle: "kcal",
+                        icon: "flame.fill"
+                    )
+                    AthleteStatTile(
+                        title: String(localized: "health_workouts_count"),
+                        value: healthWorkoutCount == 0 ? "—" : "\(healthWorkoutCount)",
+                        subtitle: String(localized: "health_subtitle"),
+                        icon: "figure.run"
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -2254,7 +2435,7 @@ struct AthleteProfileSettingsView: View {
 
     var body: some View {
         ZStack {
-            AppColors.background.ignoresSafeArea()
+            AppBackground()
             ScrollView {
                 VStack(spacing: AppSpacing.lg) {
                     Button {
@@ -2364,6 +2545,7 @@ struct AthleteProfileSettingsView: View {
         }
         .navigationTitle("nav_profile")
         .navigationBarTitleDisplayMode(.inline)
+        .softNavigationBarBackground()
         .sheet(isPresented: $showEditProfile) {
             EditProfileSheet(user: user, appState: appState, onDismiss: { showEditProfile = false })
         }
@@ -2396,7 +2578,7 @@ struct EditProfileSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                AppColors.background.ignoresSafeArea()
+                AppBackground()
                 VStack(alignment: .leading, spacing: AppSpacing.xl) {
                     Text("edit_profile_name_label")
                         .font(AppTypography.headline)
@@ -2463,7 +2645,7 @@ struct UnitsPickerSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                AppColors.background.ignoresSafeArea()
+                AppBackground()
                 List(WeightUnit.allCases, id: \.self) { unit in
                     Button {
                         prefs.weightUnit = unit
@@ -2502,7 +2684,7 @@ struct ReminderTimeSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                AppColors.background.ignoresSafeArea()
+                AppBackground()
                 VStack(spacing: AppSpacing.xl) {
                     Text("reminder_daily_message")
                         .font(AppTypography.footnote)

@@ -4,6 +4,22 @@ import Combine
 import UIKit
 #endif
 
+// MARK: - Coach bottom bar visibility (hide when editing plan)
+
+final class CoachBarVisibility: ObservableObject {
+    @Published var isHidden = false
+}
+
+private struct CoachBarVisibilityKey: EnvironmentKey {
+    static let defaultValue: CoachBarVisibility? = nil
+}
+extension EnvironmentValues {
+    var coachBarVisibility: CoachBarVisibility? {
+        get { self[CoachBarVisibilityKey.self] }
+        set { self[CoachBarVisibilityKey.self] = newValue }
+    }
+}
+
 // MARK: - Coach Tabs
 
 enum CoachTab: String, CaseIterable {
@@ -37,6 +53,7 @@ struct CoachTabRootView: View {
     @ObservedObject private var prefs = AppPreferences.shared
 
     @StateObject private var dashboardVM: CoachDashboardViewModel
+    @StateObject private var coachBarVisibility = CoachBarVisibility()
     @State private var selectedTab: CoachTab = .athletes
     @State private var showFirstRunOnboarding = false
     @State private var didEvaluateOnboarding = false
@@ -54,16 +71,24 @@ struct CoachTabRootView: View {
 
     var body: some View {
         ZStack {
-            AppColors.background
-                .ignoresSafeArea()
-            VStack(spacing: 0) {
-                tabContent
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                CoachTabBar(selectedTab: $selectedTab)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            AppBackground()
+            tabContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .environment(\.coachBarVisibility, coachBarVisibility)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            CoachActionBar(selectedTab: $selectedTab)
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+                .padding(.bottom, 8)
+                .frame(height: coachBarVisibility.isHidden ? 0 : nil)
+                .opacity(coachBarVisibility.isHidden ? 0 : 1)
+                .offset(y: coachBarVisibility.isHidden ? 80 : 0)
+                .clipped()
+                .allowsHitTesting(!coachBarVisibility.isHidden)
+        }
+        .animation(.easeInOut(duration: 0.35), value: coachBarVisibility.isHidden)
         .onAppear { dashboardVM.load() }
         .onChange(of: dashboardVM.isLoading) { _, isLoading in
             if !isLoading {
@@ -93,12 +118,16 @@ struct CoachTabRootView: View {
         switch selectedTab {
         case .athletes:
             NavigationStack { CoachDashboardView(viewModel: dashboardVM) }
+                .environment(\.coachBarVisibility, coachBarVisibility)
         case .programs:
             NavigationStack { PlanProgramsEntryView(appState: appState) }
+                .environment(\.coachBarVisibility, coachBarVisibility)
         case .signals:
             NavigationStack { CoachSignalsView(appState: appState) }
+                .environment(\.coachBarVisibility, coachBarVisibility)
         case .profile:
             NavigationStack { CoachProfileView(coach: coach) }
+                .environment(\.coachBarVisibility, coachBarVisibility)
         }
     }
     
@@ -281,6 +310,29 @@ struct CoachDashboardView: View {
                         ForEach(0..<5, id: \.self) { _ in
                             SkeletonCard()
                         }
+                    } else if viewModel.athletes.isEmpty {
+                        GlassCard(cornerRadius: AppTheme.Corners.xl) {
+                            EmptyStateView(
+                                icon: "person.3",
+                                title: String(localized: "no_athletes_yet"),
+                                message: String(localized: "no_athletes_desc"),
+                                cta: {
+                                    NavigationLink {
+                                        CoachProfileView(coach: viewModel.coach)
+                                    } label: {
+                                        Text(String(localized: "invite_athletes_title"))
+                                            .font(AppTypography.callout)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.white)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, AppSpacing.md)
+                                            .background(AppTheme.Gradients.primary, in: RoundedRectangle(cornerRadius: AppTheme.Corners.lg, style: .continuous))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            )
+                        }
+                        .padding(.top, AppSpacing.lg)
                     } else {
                         ForEach(filteredAthletes) { athlete in
                             NavigationLink {
@@ -312,11 +364,13 @@ struct CoachDashboardView: View {
                 .padding(.bottom, AppSpacing.xxxl)
             }
             .frame(maxWidth: .infinity)
+            .refreshable { await MainActor.run { viewModel.load() } }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppColors.background)
         .navigationTitle("nav_dashboard")
         .navigationBarTitleDisplayMode(.inline)
+        .softNavigationBarBackground()
     }
     
     private var filteredAthletes: [User] {
@@ -432,6 +486,7 @@ struct CoachSignalsView: View {
         .background(AppColors.background)
         .navigationTitle("tab_signals")
         .navigationBarTitleDisplayMode(.inline)
+        .softNavigationBarBackground()
         .refreshable { await load() }
         .task { await load() }
     }
@@ -813,7 +868,7 @@ struct PlanProgramsEntryView: View {
 
     var body: some View {
         ZStack {
-            AppColors.background.ignoresSafeArea()
+            AppBackground()
             if isLoading {
                 ScrollView {
                     VStack(spacing: AppSpacing.sm) {
@@ -825,14 +880,33 @@ struct PlanProgramsEntryView: View {
                     .padding(.vertical, AppSpacing.lg)
                 }
             } else if athletes.isEmpty {
-                VStack(spacing: AppSpacing.lg) {
-                    Text("no_athletes_yet")
-                        .font(AppTypography.title2)
-                    Text("no_athletes_desc")
-                        .font(AppTypography.body)
-                        .foregroundColor(AppColors.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
+                ScrollView {
+                    GlassCard(cornerRadius: AppTheme.Corners.xl) {
+                        EmptyStateView(
+                            icon: "person.3",
+                            title: String(localized: "no_athletes_yet"),
+                            message: String(localized: "no_athletes_desc"),
+                                cta: {
+                                    if let coach = appState.currentUser, coach.role == .coach {
+                                        NavigationLink(destination: CoachProfileView(coach: coach)) {
+                                            Text(String(localized: "invite_athletes_title"))
+                                                .font(AppTypography.callout)
+                                                .fontWeight(.semibold)
+                                                .foregroundColor(.white)
+                                                .frame(maxWidth: .infinity)
+                                                .padding(.vertical, AppSpacing.md)
+                                                .background(AppTheme.Gradients.primary, in: RoundedRectangle(cornerRadius: AppTheme.Corners.lg, style: .continuous))
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            )
+                    }
+                    .padding(.horizontal, AppSpacing.lg)
+                    .padding(.top, AppSpacing.xl)
+                }
+                .refreshable {
+                    await MainActor.run { load() }
                 }
             } else {
                 ScrollView {
@@ -862,10 +936,12 @@ struct PlanProgramsEntryView: View {
                     .padding(.horizontal, AppSpacing.lg)
                     .padding(.vertical, AppSpacing.lg)
                 }
+                .refreshable { await MainActor.run { load() } }
             }
         }
         .navigationTitle("nav_programs")
         .navigationBarTitleDisplayMode(.inline)
+        .softNavigationBarBackground()
         .onAppear { load() }
     }
 
@@ -887,55 +963,43 @@ struct CoachFirstRunOnboardingView: View {
     var onContinue: () -> Void
     var onSkip: (_ neverShowAgain: Bool) -> Void
     @State private var neverShowAgain = false
-    
+
     var body: some View {
         NavigationStack {
             ZStack {
-                AppColors.background.ignoresSafeArea()
+                AppBackground()
                 ScrollView {
-                    VStack(alignment: .leading, spacing: AppSpacing.lg) {
-                        HStack(spacing: AppSpacing.md) {
-                            Image(systemName: "sparkles.rectangle.stack.fill")
-                                .font(.system(size: 28, weight: .semibold))
-                                .foregroundColor(AppColors.accent)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("first_run_coach_title")
-                                    .font(AppTypography.title2)
-                                Text("first_run_coach_message")
-                                    .font(AppTypography.footnote)
-                                    .foregroundColor(AppColors.textSecondary)
-                            }
+                    VStack(alignment: .leading, spacing: AppSpacing.xxl) {
+                        headerBlock
+                        VStack(spacing: AppSpacing.md) {
+                            featureRow(
+                                icon: "calendar.badge.plus",
+                                title: String(localized: "first_run_coach_feature_plans_title"),
+                                subtitle: String(localized: "first_run_coach_feature_plans_subtitle")
+                            )
+                            featureRow(
+                                icon: "dumbbell.fill",
+                                title: String(localized: "first_run_coach_feature_exercises_title"),
+                                subtitle: String(localized: "first_run_coach_feature_exercises_subtitle")
+                            )
+                            featureRow(
+                                icon: "paperplane.fill",
+                                title: String(localized: "first_run_coach_feature_updates_title"),
+                                subtitle: String(localized: "first_run_coach_feature_updates_subtitle")
+                            )
+                            featureRow(
+                                icon: "chart.line.uptrend.xyaxis",
+                                title: String(localized: "first_run_coach_feature_summary_title"),
+                                subtitle: String(localized: "first_run_coach_feature_summary_subtitle")
+                            )
                         }
-
-                        featureItem(
-                            icon: "calendar.badge.plus",
-                            title: String(localized: "first_run_coach_feature_plans_title"),
-                            subtitle: String(localized: "first_run_coach_feature_plans_subtitle")
-                        )
-                        featureItem(
-                            icon: "dumbbell.fill",
-                            title: String(localized: "first_run_coach_feature_exercises_title"),
-                            subtitle: String(localized: "first_run_coach_feature_exercises_subtitle")
-                        )
-                        featureItem(
-                            icon: "paperplane.fill",
-                            title: String(localized: "first_run_coach_feature_updates_title"),
-                            subtitle: String(localized: "first_run_coach_feature_updates_subtitle")
-                        )
-                        featureItem(
-                            icon: "chart.line.uptrend.xyaxis",
-                            title: String(localized: "first_run_coach_feature_summary_title"),
-                            subtitle: String(localized: "first_run_coach_feature_summary_subtitle")
-                        )
-
                         Toggle(isOn: $neverShowAgain) {
                             Text("first_run_coach_never_show_again")
                                 .font(AppTypography.footnote)
+                                .foregroundColor(AppColors.textSecondary)
                         }
                         .tint(AppColors.accent)
-                        .padding(.top, AppSpacing.sm)
-
-                        HStack(spacing: AppSpacing.sm) {
+                        HStack(spacing: AppSpacing.md) {
                             SecondaryButton(title: String(localized: "first_run_coach_skip")) {
                                 onSkip(neverShowAgain)
                             }
@@ -945,32 +1009,66 @@ struct CoachFirstRunOnboardingView: View {
                         }
                     }
                     .padding(.horizontal, AppSpacing.lg)
-                    .padding(.vertical, AppSpacing.lg)
+                    .padding(.vertical, AppSpacing.xxl)
+                    .padding(.bottom, AppSpacing.xxxl)
                 }
             }
             .navigationTitle("first_run_coach_nav_title")
             .navigationBarTitleDisplayMode(.inline)
+            .softNavigationBarBackground()
         }
     }
 
-    private func featureItem(icon: String, title: String, subtitle: String) -> some View {
-        GlassCard(cornerRadius: AppTheme.Corners.md) {
-            HStack(alignment: .top, spacing: AppSpacing.md) {
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(AppColors.accent)
-                    .frame(width: 28, height: 28)
-                    .background(Circle().fill(AppColors.accent.opacity(0.14)))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(AppTypography.callout.weight(.semibold))
-                    Text(subtitle)
-                        .font(AppTypography.footnote)
-                        .foregroundColor(AppColors.textSecondary)
-                }
-                Spacer()
+    private var headerBlock: some View {
+        HStack(alignment: .top, spacing: AppSpacing.lg) {
+            Image(systemName: "sparkles.rectangle.stack.fill")
+                .font(.system(size: 32, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppColors.accent)
+                .frame(width: 56, height: 56)
+                .background(Circle().fill(AppColors.accent.opacity(0.12)))
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                Text("first_run_coach_title")
+                    .font(AppTypography.title2)
+                    .foregroundColor(AppColors.textPrimary)
+                Text("first_run_coach_message")
+                    .font(AppTypography.footnote)
+                    .foregroundColor(AppColors.textSecondary)
             }
+            Spacer(minLength: 0)
         }
+        .padding(AppSpacing.lg)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color(.systemBackground))
+                .shadow(color: Color.black.opacity(0.05), radius: 12, x: 0, y: 4)
+        )
+    }
+
+    private func featureRow(icon: String, title: String, subtitle: String) -> some View {
+        HStack(alignment: .top, spacing: AppSpacing.md) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppColors.accent)
+                .frame(width: 40, height: 40)
+                .background(Circle().fill(AppColors.accent.opacity(0.12)))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(AppTypography.callout)
+                    .fontWeight(.semibold)
+                    .foregroundColor(AppColors.textPrimary)
+                Text(subtitle)
+                    .font(AppTypography.footnote)
+                    .foregroundColor(AppColors.textSecondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(AppSpacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color(.systemBackground))
+                .shadow(color: Color.black.opacity(0.05), radius: 12, x: 0, y: 4)
+        )
     }
 }
 
@@ -979,6 +1077,7 @@ struct CoachFirstRunOnboardingView: View {
 struct PlanBuilderView: View {
     let athlete: User
     @ObservedObject var appState: AppState
+    @Environment(\.coachBarVisibility) private var coachBarVisibility
     @StateObject private var viewModel: PlanScheduleViewModel
     @State private var showTemplateSheet = false
     @State private var showRenamePlanSheet = false
@@ -997,9 +1096,13 @@ struct PlanBuilderView: View {
         ))
     }
 
+    private var isEditingPlan: Bool {
+        editSheetItem != nil || showRenamePlanSheet || showTemplateSheet
+    }
+
     var body: some View {
         ZStack {
-            AppColors.background.ignoresSafeArea()
+            AppBackground()
             Group {
                 if viewModel.isLoading {
                     ProgressView()
@@ -1011,6 +1114,7 @@ struct PlanBuilderView: View {
         }
         .navigationTitle("coach_plan_nav_title")
         .navigationBarTitleDisplayMode(.inline)
+        .softNavigationBarBackground()
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
@@ -1041,7 +1145,20 @@ struct PlanBuilderView: View {
         .safeAreaInset(edge: .bottom) {
             bottomCTA
         }
-        .onAppear { viewModel.load() }
+        .onAppear {
+            viewModel.load()
+            coachBarVisibility?.isHidden = isEditingPlan
+        }
+        .onDisappear {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                coachBarVisibility?.isHidden = false
+            }
+        }
+        .onChange(of: isEditingPlan) { _, editing in
+            withAnimation(.easeInOut(duration: 0.3)) {
+                coachBarVisibility?.isHidden = editing
+            }
+        }
         .sheet(isPresented: $showTemplateSheet) {
             templateSheet
         }
@@ -1073,28 +1190,27 @@ struct PlanBuilderView: View {
     }
 
     private var content: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(String(format: String(localized: "week_number_format"), viewModel.selectedWeekIndex + 1))
-                    .font(.headline)
-                Text(viewModel.selectedWeekRangeText)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.horizontal, 16)
+        SoftSurfaceContainer(cornerRadius: 24) {
+            VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                    Text(String(format: String(localized: "week_number_format"), viewModel.selectedWeekIndex + 1))
+                        .font(AppTypography.headline)
+                    Text(viewModel.selectedWeekRangeText)
+                        .font(AppTypography.footnote)
+                        .foregroundColor(AppColors.textSecondary)
+                }
 
-            WeekSelectorView(
-                weeks: viewModel.weeks,
-                selectedWeekIndex: viewModel.selectedWeekIndex,
-                onSelect: { viewModel.selectWeek($0) },
-                onAddWeek: { viewModel.addWeek() }
-            )
-            .padding(.horizontal, 16)
+                WeekSelectorView(
+                    weeks: viewModel.weeks,
+                    selectedWeekIndex: viewModel.selectedWeekIndex,
+                    onSelect: { viewModel.selectWeek($0) },
+                    onAddWeek: { viewModel.addWeek() }
+                )
 
-            if viewModel.workoutsForSelectedWeek.isEmpty {
-                emptyState
-            } else {
-                List {
+                if viewModel.workoutsForSelectedWeek.isEmpty {
+                    emptyState
+                } else {
+                    List {
                     ForEach(viewModel.workoutsForSelectedWeek) { item in
                         Button {
                             editSheetItem = item
@@ -1138,24 +1254,29 @@ struct PlanBuilderView: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
+                }
             }
+            .padding(AppSpacing.lg)
         }
+        .padding(.horizontal, AppSpacing.lg)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var emptyState: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: AppSpacing.lg) {
             Spacer()
             Image(systemName: "calendar")
-                .font(.system(size: 42, weight: .semibold))
-                .foregroundColor(.secondary)
+                .font(.system(size: 42, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppColors.accent.opacity(0.9))
+                .symbolRenderingMode(.hierarchical)
             Text("plan_empty_week_title")
-                .font(.title3.weight(.semibold))
+                .font(AppTypography.title2)
+                .foregroundColor(AppColors.textPrimary)
             Text("plan_empty_week_subtitle")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+                .font(AppTypography.footnote)
+                .foregroundColor(AppColors.textSecondary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
+                .padding(.horizontal, AppSpacing.xxl)
             PrimaryButton(title: String(localized: "button_add_workout_day"), fullWidth: false) {
                 viewModel.addWorkoutDay()
             }
@@ -1173,32 +1294,35 @@ struct PlanBuilderView: View {
 
     private var bottomCTA: some View {
         VStack(spacing: 0) {
-            Divider()
+            Rectangle()
+                .fill(AppColors.border.opacity(0.3))
+                .frame(height: 1)
             HStack {
                 PrimaryButton(title: String(localized: "button_add_workout_day"), fullWidth: true) {
                     viewModel.addWorkoutDay()
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(.ultraThinMaterial)
+            .padding(.horizontal, AppSpacing.lg)
+            .padding(.vertical, AppSpacing.md)
+            .background(AppTheme.Materials.glass)
         }
     }
 
     private var templateSheet: some View {
         NavigationStack {
             ZStack {
-                AppColors.background.ignoresSafeArea()
+                AppBackground()
                 if viewModel.templates.isEmpty {
-                    VStack(spacing: 12) {
-                        Text("coach_templates_empty_title")
-                            .font(AppTypography.title2)
-                        Text("coach_templates_empty_subtitle")
-                            .font(AppTypography.footnote)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
+                    GlassCard(cornerRadius: AppTheme.Corners.lg) {
+                        EmptyStateView(
+                            icon: "square.stack",
+                            title: String(localized: "coach_templates_empty_title"),
+                            message: String(localized: "coach_templates_empty_subtitle"),
+                            compact: true
+                        )
                     }
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, AppSpacing.lg)
+                    .padding(.top, AppSpacing.xl)
                 } else {
                     List(viewModel.templates) { template in
                         Button {
@@ -1232,7 +1356,7 @@ struct PlanBuilderView: View {
     private var renamePlanSheet: some View {
         NavigationStack {
             ZStack {
-                AppColors.background.ignoresSafeArea()
+                AppBackground()
                 VStack(alignment: .leading, spacing: 12) {
                     Text("plan_rename_title")
                         .font(.headline)
@@ -1757,7 +1881,7 @@ struct WorkoutEditorView: View {
 
     var body: some View {
         ZStack {
-            AppColors.background.ignoresSafeArea()
+            AppBackground()
             VStack(spacing: AppSpacing.lg) {
                 SectionHeader(
                     title: String(localized: "workout_day_title"),
@@ -1974,7 +2098,7 @@ struct ExerciseEditorView: View {
 
     var body: some View {
         ZStack {
-            AppColors.background.ignoresSafeArea()
+            AppBackground()
             ScrollView {
                 VStack(spacing: AppSpacing.lg) {
                     SectionHeader(title: String(localized: "exercise_section_title"), subtitle: String(localized: "exercise_section_subtitle"))
@@ -2204,7 +2328,7 @@ struct SendUpdateView: View {
 
     var body: some View {
         ZStack {
-            AppColors.background.ignoresSafeArea()
+            AppBackground()
             VStack(spacing: AppSpacing.xl) {
                 Spacer()
                 Image(systemName: didSend ? "paperplane.circle.fill" : "paperplane.circle")
@@ -2514,6 +2638,7 @@ struct CoachProfileView: View {
         .background(AppColors.background)
         .navigationTitle("nav_profile")
         .navigationBarTitleDisplayMode(.inline)
+        .softNavigationBarBackground()
         .sheet(isPresented: $showEditProfile) {
             CoachEditProfileSheet(coach: coach, appState: appState, onDismiss: { showEditProfile = false })
         }
@@ -2533,7 +2658,7 @@ struct CoachEditProfileSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                AppColors.background.ignoresSafeArea()
+                AppBackground()
                 VStack(alignment: .leading, spacing: AppSpacing.xl) {
                     Text("edit_profile_name_label")
                         .font(AppTypography.headline)
@@ -2604,7 +2729,7 @@ struct CoachInviteCodeView: View {
 
     var body: some View {
         ZStack {
-            AppColors.background.ignoresSafeArea()
+            AppBackground()
             ScrollView {
                 VStack(spacing: AppSpacing.xl) {
                     SectionHeader(

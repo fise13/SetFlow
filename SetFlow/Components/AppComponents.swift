@@ -53,7 +53,89 @@ enum HapticManager {
     }
 }
 
-// MARK: - Primary / Secondary Buttons
+// MARK: - Action Capsule Button (Start-button DNA: capsule, lime glow, magnetic press)
+
+struct ActionCapsuleButton: View {
+    let title: String
+    var icon: String? = nil
+    var fullWidth: Bool = true
+    var action: () -> Void
+    
+    @State private var isPressed = false
+    @State private var glowOpacity: Double = 0
+    
+    var body: some View {
+        Button {
+            HapticManager.impact()
+            action()
+        } label: {
+            ZStack {
+                Capsule(style: .continuous)
+                    .fill(AppTheme.Gradients.primaryLime)
+                    .blur(radius: Motion.Activation.glowBlurRadius)
+                    .opacity(glowOpacity)
+                    .scaleEffect(1.2)
+                
+                HStack(spacing: AppSpacing.sm) {
+                    if let icon = icon {
+                        Image(systemName: icon)
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    }
+                    Text(title)
+                        .font(AppTypography.callout)
+                        .fontWeight(.semibold)
+                }
+                .foregroundColor(.black)
+                .frame(maxWidth: fullWidth ? .infinity : nil)
+                .padding(.vertical, AppSpacing.md)
+                .padding(.horizontal, AppSpacing.lg)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(AppTheme.Gradients.primaryLime)
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.5), lineWidth: 0.5)
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.5), Color.white.opacity(0)],
+                                startPoint: .top,
+                                endPoint: .center
+                            ),
+                            lineWidth: 1
+                        )
+                )
+                .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 4)
+                .shadow(color: AppColors.primaryAccentLime.opacity(0.25), radius: 10, x: 0, y: 2)
+            }
+            .scaleEffect(isPressed ? Motion.Press.magneticScale : 1.0)
+        }
+        .buttonStyle(.plain)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    if !isPressed {
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            isPressed = true
+                            glowOpacity = Motion.Activation.glowOpacityMax * 0.5
+                        }
+                    }
+                }
+                .onEnded { _ in
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        isPressed = false
+                        glowOpacity = 0
+                    }
+                }
+        )
+        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: isPressed)
+    }
+}
+
+// MARK: - Primary / Secondary Buttons (athlete: use ActionCapsuleButton)
 
 struct PrimaryActionButton: View {
     let title: String
@@ -61,49 +143,8 @@ struct PrimaryActionButton: View {
     var fullWidth: Bool = true
     var action: () -> Void
     
-    @State private var isPressed = false
-    
     var body: some View {
-        Button {
-            HapticManager.impact()
-            action()
-        } label: {
-            HStack(spacing: AppSpacing.sm) {
-                if let icon = icon {
-                    Image(systemName: icon)
-                        .font(.system(size: 16, weight: .semibold))
-                }
-                Text(title)
-                    .font(AppTypography.callout)
-                    .fontWeight(.semibold)
-            }
-            .foregroundColor(.white)
-            .frame(maxWidth: fullWidth ? .infinity : nil)
-            .padding(.vertical, AppSpacing.md)
-            .padding(.horizontal, AppSpacing.lg)
-            .background(
-                AppTheme.Gradients.primary
-                    .cornerRadius(AppTheme.Corners.lg)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: AppTheme.Corners.lg)
-                    .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
-            )
-            .scaleEffect(isPressed ? 0.96 : 1.0)
-            .appShadow(.floating)
-        }
-        .buttonStyle(.plain)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in
-                    guard !isPressed else { return }
-                    isPressed = true
-                }
-                .onEnded { _ in
-                    isPressed = false
-                }
-        )
-        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: isPressed)
+        ActionCapsuleButton(title: title, icon: icon, fullWidth: fullWidth, action: action)
     }
 }
 
@@ -117,25 +158,25 @@ struct PrimaryActionButtonLabel: View {
         HStack(spacing: AppSpacing.sm) {
             if let icon = icon {
                 Image(systemName: icon)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
             }
             Text(title)
                 .font(AppTypography.callout)
                 .fontWeight(.semibold)
         }
-        .foregroundColor(.white)
+        .foregroundColor(.black)
         .frame(maxWidth: fullWidth ? .infinity : nil)
         .padding(.vertical, AppSpacing.md)
         .padding(.horizontal, AppSpacing.lg)
         .background(
-            AppTheme.Gradients.primary
-                .cornerRadius(AppTheme.Corners.lg)
+            Capsule(style: .continuous)
+                .fill(AppTheme.Gradients.primaryLime)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: AppTheme.Corners.lg)
-                .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+            Capsule(style: .continuous)
+                .strokeBorder(Color.white.opacity(0.4), lineWidth: 0.5)
         )
-        .appShadow(.floating)
+        .shadow(color: AppColors.primaryAccentLime.opacity(0.4), radius: 10, x: 0, y: 2)
     }
 }
 
@@ -146,7 +187,7 @@ struct PrimaryButton: View {
     var action: () -> Void
     
     var body: some View {
-        PrimaryActionButton(title: title, fullWidth: fullWidth, action: action)
+        ActionCapsuleButton(title: title, fullWidth: fullWidth, action: action)
     }
 }
 
@@ -178,10 +219,10 @@ struct SecondaryButton: View {
                 .padding(.vertical, AppSpacing.md)
                 .padding(.horizontal, AppSpacing.lg)
                 .background(
-                    RoundedRectangle(cornerRadius: AppTheme.Corners.lg)
+                    Capsule(style: .continuous)
                         .fill(Color.white.opacity(0.06))
-                        .background(
-                            RoundedRectangle(cornerRadius: AppTheme.Corners.lg)
+                        .overlay(
+                            Capsule(style: .continuous)
                                 .strokeBorder(AppColors.border.opacity(0.4), lineWidth: 1)
                         )
                 )
@@ -273,13 +314,46 @@ struct SecondaryButtonLabel: View {
             .padding(.vertical, AppSpacing.md)
             .padding(.horizontal, AppSpacing.lg)
             .background(
-                RoundedRectangle(cornerRadius: AppTheme.Corners.lg)
+                Capsule(style: .continuous)
                     .fill(Color.white.opacity(0.06))
-                    .background(
-                        RoundedRectangle(cornerRadius: AppTheme.Corners.lg)
+                    .overlay(
+                        Capsule(style: .continuous)
                             .strokeBorder(AppColors.border.opacity(0.4), lineWidth: 1)
                     )
             )
+    }
+}
+
+// MARK: - Icon Toggle (idle / active: scale, opacity, spring — design system)
+
+struct IconToggle: View {
+    let icon: String
+    var isSelected: Bool = false
+    var action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .medium, design: .rounded))
+                .symbolVariant(isSelected ? .fill : .none)
+                .foregroundStyle(isSelected ? .white : Color(.systemGray2))
+                .frame(width: 40, height: 40)
+                .scaleEffect(isSelected ? Motion.Selection.selectedScale : 1.0)
+                .opacity(isSelected ? Motion.Selection.selectedOpacity : Motion.Selection.unselectedOpacity)
+                .background(
+                    RoundedRectangle(cornerRadius: AppTheme.Corners.sm, style: .continuous)
+                        .fill(isSelected ? Color.black : Color.clear)
+                )
+        }
+        .buttonStyle(IconToggleButtonStyle())
+    }
+}
+
+private struct IconToggleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.spring(response: Motion.Selection.springResponse, dampingFraction: Motion.Selection.springDamping), value: configuration.isPressed)
     }
 }
 
@@ -452,7 +526,7 @@ struct SkeletonCard: View {
     }
 }
 
-// MARK: - Glass Card & Section Header
+// MARK: - Floating Card (elevated surface: token shadow, radius, glass fill)
 
 struct GlassCard<Content: View>: View {
     let content: () -> Content
@@ -474,7 +548,7 @@ struct GlassCard<Content: View>: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+                        .strokeBorder(AppColors.strokeSoft, lineWidth: 1)
                 )
             
             VStack(alignment: .leading, spacing: AppSpacing.sm) {
@@ -482,9 +556,12 @@ struct GlassCard<Content: View>: View {
             }
             .padding(AppSpacing.lg)
         }
-        .appShadow(.softCard)
+        .appShadow(AppTheme.ShadowStyle.idle)
     }
 }
+
+/// Design-system alias: same as GlassCard (floating elevated surface).
+typealias FloatingCard = GlassCard
 
 /// Legacy wrapper for compatibility with earlier code
 struct CardView<Content: View>: View {
@@ -496,6 +573,56 @@ struct CardView<Content: View>: View {
     
     var body: some View {
         GlassCard(content: content)
+    }
+}
+
+// MARK: - Empty State (reusable)
+
+struct EmptyStateView<CTA: View>: View {
+    var icon: String
+    var title: String
+    var message: String
+    var compact: Bool = false
+    @ViewBuilder var cta: () -> CTA
+
+    init(icon: String, title: String, message: String, compact: Bool = false, @ViewBuilder cta: @escaping () -> CTA) {
+        self.icon = icon
+        self.title = title
+        self.message = message
+        self.compact = compact
+        self.cta = cta
+    }
+
+    var body: some View {
+        VStack(spacing: compact ? AppSpacing.md : AppSpacing.lg) {
+            Image(systemName: icon)
+                .font(.system(size: compact ? 36 : 44, weight: .medium))
+                .foregroundStyle(AppColors.primaryAccentLime.opacity(0.9))
+                .symbolRenderingMode(.hierarchical)
+            Text(title)
+                .font(compact ? AppTypography.headline : AppTypography.title2)
+                .foregroundColor(AppColors.textPrimary)
+                .multilineTextAlignment(.center)
+            Text(message)
+                .font(compact ? AppTypography.footnote : AppTypography.body)
+                .foregroundColor(AppColors.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, compact ? AppSpacing.md : AppSpacing.lg)
+            cta()
+                .padding(.top, AppSpacing.xs)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, compact ? AppSpacing.xl : AppSpacing.xxl)
+    }
+}
+
+extension EmptyStateView where CTA == EmptyView {
+    init(icon: String, title: String, message: String, compact: Bool = false) {
+        self.icon = icon
+        self.title = title
+        self.message = message
+        self.compact = compact
+        self.cta = { EmptyView() }
     }
 }
 
@@ -872,7 +999,7 @@ struct BottomSheet<Content: View>: View {
                     
                     VStack(spacing: 0) {
                         Capsule()
-                            .fill(Color.white.opacity(0.4))
+                            .fill(AppColors.textMuted.opacity(0.8))
                             .frame(width: 36, height: 4)
                             .padding(.top, AppSpacing.md)
                             .padding(.bottom, AppSpacing.sm)

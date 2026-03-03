@@ -50,6 +50,19 @@ final class AuthService: ObservableObject {
         _ = try await Auth.auth().signInAnonymously()
     }
 
+    /// Sign in with Apple. Use the idToken and rawNonce from AppleSignInHelper.
+    func signInWithApple(idToken: String, rawNonce: String, fullName: PersonNameComponents? = nil) async throws {
+        let credential = OAuthProvider.appleCredential(
+            withIDToken: idToken,
+            rawNonce: rawNonce,
+            fullName: fullName
+        )
+        _ = try await Auth.auth().signIn(with: credential)
+        await MainActor.run {
+            currentFirebaseUser = Auth.auth().currentUser
+        }
+    }
+
     func signOut() throws {
         try Auth.auth().signOut()
     }

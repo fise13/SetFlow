@@ -251,6 +251,12 @@
 "heaviest_workout" = "Heaviest workout";
 "single_session_volume" = "Single session volume";
 "nav_progress" = "Progress";
+"section_health" = "From Health";
+"health_subtitle" = "Apple Watch & Health app";
+"health_calories_total" = "Active calories (30 days)";
+"health_workouts_count" = "Workouts in Health";
+"health_no_data" = "No Health data yet. Work out with Apple Watch or add data in the Health app.";
+"health_loading" = "Loading…";
 
 /* Athlete Profile */
 "athlete_profile_edit_hint" = "Athlete profile • Tap to edit";

@@ -10,10 +10,14 @@ import WatchConnectivity
 /// Manages iPhone -> Watch communication. When a watchOS companion app is added,
 /// it will receive today's workout and can send logs back. Add SetFlow Watch
 /// target in Xcode, then implement WCSessionDelegate on Watch to receive data.
+/// Receives live workout metrics from Watch and forwards via onLiveWorkoutUpdate.
 final class WatchConnectivityManager: NSObject, ObservableObject {
     static let shared = WatchConnectivityManager()
 
     @Published var isReachable = false
+
+    /// Called when Watch sends a live workout payload. Keys: heartRate, calories, elapsedTime, workoutState ("idle"|"active"|"paused"|"finished").
+    var onLiveWorkoutUpdate: (([String: Any]) -> Void)?
 
     private override init() {
         super.init()
@@ -53,6 +57,22 @@ extension WatchConnectivityManager: WCSessionDelegate {
 
     func sessionReachabilityDidChange(_ session: WCSession) {
         DispatchQueue.main.async { self.isReachable = session.isReachable }
+    }
+
+    func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        if message["heartRate"] != nil || message["elapsedTime"] != nil || message["workoutState"] != nil {
+            DispatchQueue.main.async { [weak self] in
+                self?.onLiveWorkoutUpdate?(message)
+            }
+        }
+    }
+
+    func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
+        if applicationContext["heartRate"] != nil || applicationContext["elapsedTime"] != nil || applicationContext["workoutState"] != nil {
+            DispatchQueue.main.async { [weak self] in
+                self?.onLiveWorkoutUpdate?(applicationContext)
+            }
+        }
     }
 
     #if os(iOS)

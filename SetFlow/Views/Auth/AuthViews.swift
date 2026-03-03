@@ -1,73 +1,79 @@
 import SwiftUI
 import FirebaseAuth
+import AuthenticationServices
 #if canImport(UIKit)
 import UIKit
 #endif
 
-// MARK: - Onboarding Flow
+// MARK: - Onboarding Flow (first launch before sign in)
 
 struct WelcomeView: View {
     @State private var currentPage: Int = 0
-    
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.08, green: 0.10, blue: 0.16),
-                    Color(red: 0.03, green: 0.13, blue: 0.22)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-            
+            onboardingBackground
             VStack {
-                TabView(selection: $currentPage) {
-                    OnboardingSlide(
-                        title: String(localized: "onboarding_title_train"),
-                        subtitle: String(localized: "onboarding_subtitle_train"),
-                        icon: "figure.strengthtraining.traditional",
-                        accentGradient: AppTheme.Gradients.primary
-                    )
-                    .tag(0)
-                    
-                    OnboardingSlide(
-                        title: String(localized: "onboarding_title_focus"),
-                        subtitle: String(localized: "onboarding_subtitle_focus"),
-                        icon: "timer",
-                        accentGradient: AppTheme.Gradients.warm
-                    )
-                    .tag(1)
-                    
-                    OnboardingSlide(
-                        title: String(localized: "onboarding_title_coaches"),
-                        subtitle: String(localized: "onboarding_subtitle_coaches"),
-                        icon: "person.3.sequence.fill",
-                        accentGradient: AppTheme.Gradients.primary
-                    )
-                    .tag(2)
-                }
-                .tabViewStyle(.page)
-                .indexViewStyle(.page(backgroundDisplayMode: .never))
-                
-                onboardingPager
-                    .padding(.horizontal, AppSpacing.lg)
-                    .padding(.bottom, AppSpacing.lg)
+                contentBlock
+                    .padding(.top, 60)
+
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+        .safeAreaInset(edge: .bottom) {
+            bottomCTA
+        }
+    }
+
+    private var contentBlock: some View {
+        VStack(spacing: 28) {
+            TabView(selection: $currentPage) {
+                OnboardingSlide(
+                    title: String(localized: "onboarding_title_train"),
+                    subtitle: String(localized: "onboarding_subtitle_train"),
+                    icon: "figure.strengthtraining.traditional",
+                    accentColor: AppColors.accent
+                )
+                .tag(0)
+                OnboardingSlide(
+                    title: String(localized: "onboarding_title_focus"),
+                    subtitle: String(localized: "onboarding_subtitle_focus"),
+                    icon: "timer",
+                    accentColor: Color(red: 0.95, green: 0.5, blue: 0.35)
+                )
+                .tag(1)
+                OnboardingSlide(
+                    title: String(localized: "onboarding_title_coaches"),
+                    subtitle: String(localized: "onboarding_subtitle_coaches"),
+                    icon: "person.3.sequence.fill",
+                    accentColor: AppColors.accent
+                )
+                .tag(2)
+            }
+            .frame(height: 360)
+            .tabViewStyle(.page)
+            .indexViewStyle(.page(backgroundDisplayMode: .never))
+            paginationDots
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 24)
+    }
+
+    private var paginationDots: some View {
+        HStack(spacing: 8) {
+            ForEach(0..<3, id: \.self) { index in
+                Capsule()
+                    .fill(index == currentPage ? AppColors.accent : AppColors.textSecondary.opacity(0.35))
+                    .frame(width: index == currentPage ? 20 : 8, height: 8)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: currentPage)
             }
         }
     }
-    
-    private var onboardingPager: some View {
-        VStack(spacing: AppSpacing.md) {
-            HStack(spacing: 6) {
-                ForEach(0..<3) { index in
-                    Capsule()
-                        .fill(index == currentPage ? Color.white : Color.white.opacity(0.25))
-                        .frame(width: index == currentPage ? 22 : 6, height: 6)
-                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: currentPage)
-                }
-            }
-            
+
+    private var bottomCTA: some View {
+        VStack(spacing: 14) {
             if currentPage < 2 {
                 PrimaryActionButton(title: String(localized: "button_continue")) {
                     withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) {
@@ -82,7 +88,6 @@ struct WelcomeView: View {
                 }
                 .buttonStyle(.plain)
             }
-            
             Button {
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) {
                     currentPage = 2
@@ -90,11 +95,28 @@ struct WelcomeView: View {
             } label: {
                 Text(currentPage == 2 ? " " : String(localized: "skip_to_sign_in"))
                     .font(AppTypography.footnote)
-                    .foregroundColor(Color.white.opacity(0.7))
-                    .padding(.top, 2)
+                    .foregroundColor(AppColors.textSecondary)
             }
             .buttonStyle(.plain)
         }
+    }
+
+    private var onboardingBackground: some View {
+        Group {
+            if colorScheme == .dark {
+                Color(red: 0.11, green: 0.12, blue: 0.16)
+            } else {
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.97, green: 0.98, blue: 0.99),
+                        Color(red: 0.94, green: 0.96, blue: 0.98)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+        }
+        .ignoresSafeArea()
     }
 }
 
@@ -102,49 +124,38 @@ struct OnboardingSlide: View {
     let title: String
     let subtitle: String
     let icon: String
-    let accentGradient: LinearGradient
-    
+    let accentColor: Color
+
     var body: some View {
-        VStack(spacing: AppSpacing.xl) {
-            Spacer()
-            
-            ZStack {
-                RoundedRectangle(cornerRadius: AppTheme.Corners.xl, style: .continuous)
-                    .fill(accentGradient)
-                    .overlay(AppTheme.Gradients.cardOverlay)
-                    .frame(height: 260)
-                    .appShadow(.softCard)
-                
-                VStack(spacing: AppSpacing.lg) {
-                    Image(systemName: icon)
-                        .font(.system(size: 40, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding()
-                        .background(
-                            Circle()
-                                .fill(Color.white.opacity(0.15))
-                        )
-                    
-                    Text("brand_name")
-                        .font(AppTypography.monoCaption)
-                        .foregroundColor(Color.white.opacity(0.8))
-                    
-                    Text(title)
-                        .font(AppTypography.title1)
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, AppSpacing.xl)
-                }
+        VStack(spacing: AppSpacing.xxl) {
+            VStack(spacing: AppSpacing.xl) {
+                Image(systemName: icon)
+                    .font(.system(size: 44, weight: .semibold, design: .rounded))
+                    .foregroundStyle(accentColor)
+                    .frame(width: 88, height: 88)
+                    .background(Circle().fill(accentColor.opacity(0.12)))
+                Text("brand_name")
+                    .font(AppTypography.monoCaption)
+                    .foregroundColor(AppColors.textSecondary)
+                Text(title)
+                    .font(AppTypography.title2)
+                    .foregroundColor(AppColors.textPrimary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, AppSpacing.lg)
             }
+            .padding(.vertical, AppSpacing.xxl)
             .padding(.horizontal, AppSpacing.xl)
-            
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(Color(.systemBackground))
+                    .shadow(color: Color.black.opacity(0.06), radius: 16, x: 0, y: 8)
+            )
             Text(subtitle)
                 .font(AppTypography.body)
                 .foregroundColor(AppColors.textSecondary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, AppSpacing.xl)
-            
-            Spacer()
+                .padding(.horizontal, AppSpacing.md)
         }
     }
 }
@@ -483,8 +494,37 @@ struct SignInView: View {
     // MARK: - Actions
     
     private func handleAppleSignIn() {
-        generalError = String(localized: "error_apple_not_configured")
+        generalError = nil
+        isLoading = true
         HapticManager.impact()
+        AppleSignInHelper.shared.performSignIn(
+            onSuccess: { idToken, rawNonce, fullName in
+                Task { @MainActor in
+                    do {
+                        try await appState.authService.signInWithApple(idToken: idToken, rawNonce: rawNonce, fullName: fullName)
+                        HapticManager.success()
+                    } catch {
+                        generalError = AuthService.userFriendlyMessage(for: error)
+                    }
+                    isLoading = false
+                }
+            },
+            onFailure: { error in
+                Task { @MainActor in
+                    let ns = error as NSError
+                    if ns.domain == ASAuthorizationError.errorDomain {
+                        if ns.code == ASAuthorizationError.canceled.rawValue {
+                            generalError = nil
+                        } else {
+                            generalError = String(localized: "error_apple_not_configured")
+                        }
+                    } else {
+                        generalError = AuthService.userFriendlyMessage(for: error)
+                    }
+                    isLoading = false
+                }
+            }
+        )
     }
 
     private func handleEmailSignIn() {

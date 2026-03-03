@@ -20,6 +20,7 @@ final class AppState: ObservableObject {
     let logService = WorkoutLogService()
     let inviteCodeService = InviteCodeService()
     let coachRequestService = CoachRequestService()
+    let workoutManager = WorkoutManager.shared
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -148,11 +149,12 @@ struct RootView: View {
 
     private var loadingView: some View {
         ZStack {
-            AppColors.background.ignoresSafeArea()
+            AppBackground()
             VStack(spacing: AppSpacing.lg) {
                 ProgressView()
                     .scaleEffect(1.2)
-                Text("loading")
+                    .tint(AppColors.accent)
+                Text(String(localized: "loading"))
                     .font(AppTypography.callout)
                     .foregroundColor(AppColors.textSecondary)
             }

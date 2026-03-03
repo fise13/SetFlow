@@ -229,6 +229,12 @@
 "heaviest_workout" = "Макс. объём за тренировку";
 "single_session_volume" = "Объём за одну тренировку";
 "nav_progress" = "Прогресс";
+"section_health" = "Из Здоровья";
+"health_subtitle" = "Apple Watch и приложение «Здоровье»";
+"health_calories_total" = "Активные ккал (30 дней)";
+"health_workouts_count" = "Тренировок в Здоровье";
+"health_no_data" = "Нет данных из Здоровья. Тренируйтесь с Apple Watch или добавьте данные в приложении «Здоровье».";
+"health_loading" = "Загрузка…";
 
 /* Athlete Profile */
 "athlete_profile_edit_hint" = "Профиль атлета • Нажмите, чтобы изменить";

@@ -7,13 +7,21 @@ enum AppTheme {
     // MARK: Colors
     
     enum Colors {
-        // Surfaces (system colors to avoid missing asset catalog warnings)
-        static let background = Color(.systemBackground)
+        // Surfaces — Level 0: soft neutral (unified with onboarding), not pure white
+        static let background = Color(red: 0.96, green: 0.97, blue: 0.98)
         static let backgroundElevated = Color(.secondarySystemBackground)
         static let card = Color(.secondarySystemBackground)
         
-        // Accents
+        // Athlete / design system: soft minimalism
+        static let backgroundSoft = Color(red: 0.96, green: 0.96, blue: 0.97) // F5F6F7
+        static let surfaceCard = Color.white.opacity(0.65)
+        static let strokeSoft = Color.white.opacity(0.18)
+        
+        // Accents (lime glow primary for athlete)
         static let accent = Color(red: 0.11, green: 0.82, blue: 0.82)
+        static let primaryAccentLime = Color(red: 0.78, green: 1.0, blue: 0.0)   // C8FF00
+        static let primaryAccentLimeDark = Color(red: 0.66, green: 0.88, blue: 0.0) // A8E000
+        static let primaryAccentSoft = Color(red: 0.78, green: 1.0, blue: 0.0).opacity(0.35)
         static let accentSecondary = Color(.systemPurple)
         static let accentSoft = Color(.systemGreen)
         
@@ -68,7 +76,7 @@ enum AppTheme {
         static let xl: CGFloat = 28
     }
     
-    // MARK: Shadows
+    // MARK: Shadows (unified: idle / lifted / pressed)
     
     struct ShadowStyle {
         let color: Color
@@ -76,20 +84,39 @@ enum AppTheme {
         let x: CGFloat
         let y: CGFloat
         
+        /// Idle: soft, low radius (cards at rest)
+        static let idle = ShadowStyle(
+            color: Color.black.opacity(0.06),
+            radius: 16,
+            x: 0,
+            y: 6
+        )
+        /// Lifted: floating surfaces, bars
+        static let lifted = ShadowStyle(
+            color: Color.black.opacity(0.08),
+            radius: 24,
+            x: 0,
+            y: 10
+        )
+        /// Pressed: magnetic state (reduced)
+        static let pressed = ShadowStyle(
+            color: Color.black.opacity(0.06),
+            radius: 6,
+            x: 0,
+            y: 4
+        )
         static let subtle = ShadowStyle(
             color: Color.black.opacity(0.10),
             radius: 16,
             x: 0,
             y: 10
         )
-        
         static let softCard = ShadowStyle(
             color: Color.black.opacity(0.18),
             radius: 24,
             x: 0,
             y: 18
         )
-        
         static let floating = ShadowStyle(
             color: Color.black.opacity(0.25),
             radius: 30,
@@ -101,6 +128,15 @@ enum AppTheme {
     // MARK: Gradients
     
     enum Gradients {
+        /// Lime glow primary (athlete CTA, Start button DNA)
+        static let primaryLime = LinearGradient(
+            colors: [
+                Color(red: 0.78, green: 1.0, blue: 0.0),
+                Color(red: 0.66, green: 0.88, blue: 0.0)
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
         static let primary = LinearGradient(
             colors: [
                 Color(red: 0.11, green: 0.82, blue: 0.82),
@@ -147,6 +183,12 @@ typealias AppSpacing = AppTheme.Spacing
 extension View {
     func appShadow(_ style: AppTheme.ShadowStyle = .subtle) -> some View {
         shadow(color: style.color, radius: style.radius, x: style.x, y: style.y)
+    }
+
+    /// Soft nav bar background so it doesn’t float on pure white; use on root views inside NavigationStack.
+    func softNavigationBarBackground() -> some View {
+        toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(Material.ultraThinMaterial.opacity(0.4), for: .navigationBar)
     }
 }
 
